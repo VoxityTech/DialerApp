@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">Dialer</string>
+    <string name="default_dialer_request_title">Set as Default Dialer</string>
+    <string name="default_dialer_request_message">Allow this app to handle phone calls?</string>
+    <string name="permission_call_rationale">This app needs call permissions to make and receive calls</string>
+    <string name="incoming_call">Incoming call</string>
+    <string name="outgoing_call">Calling...</string>
+    <string name="call_active">Active call</string>
+    <string name="call_on_hold">On hold</string>
+    <string name="answer">Answer</string>
+    <string name="reject">Reject</string>
+    <string name="end_call">End call</string>
+    <string name="mute">Mute</string>
+    <string name="unmute">Unmute</string>
+    <string name="speaker">Speaker</string>
+    <string name="dialpad">Dialpad</string>
+    <string name="hold">Hold</string>
+    <string name="unhold">Unhold</string>
+</resources>
