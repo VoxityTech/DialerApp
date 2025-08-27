@@ -13,13 +13,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import voxity.org.dialer.components.DialPad
-import voxity.org.dialer.makeCall
+import voxity.org.dialer.domain.usecases.CallUseCases
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DialerScreen(
     modifier: Modifier = Modifier,
-    canMakeCall: Boolean = false
+    canMakeCall: Boolean = false,
+    callUseCases: CallUseCases
 ) {
     var phoneNumber by remember { mutableStateOf("") }
 
@@ -103,7 +104,7 @@ fun DialerScreen(
             },
             onCallClick = {
                 if (phoneNumber.isNotEmpty() && canMakeCall) {
-                    makeCall(phoneNumber)
+                    callUseCases.makeCall(phoneNumber)
                 }
             },
             modifier = Modifier.padding(vertical = 32.dp)

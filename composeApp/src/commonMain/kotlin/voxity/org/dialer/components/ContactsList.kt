@@ -124,7 +124,6 @@ private fun ContactItem(
     }
 }
 
-// Sample contacts for demo
 private fun sampleContacts() = listOf(
     Contact("John Doe", "+1234567890"),
     Contact("Jane Smith", "+0987654321"),

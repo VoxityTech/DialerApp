@@ -13,8 +13,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import voxity.org.dialer.models.CallHistoryItem
-import voxity.org.dialer.models.CallType
+import voxity.org.dialer.domain.models.CallHistoryItem
+import voxity.org.dialer.domain.models.CallType
 import kotlinx.datetime.LocalDateTime
 
 @Composable

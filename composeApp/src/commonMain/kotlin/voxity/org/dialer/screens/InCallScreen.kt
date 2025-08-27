@@ -15,17 +15,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import voxity.org.dialer.components.CallButton
-import voxity.org.dialer.models.CallState
-import voxity.org.dialer.answerCall
-import voxity.org.dialer.endCall
-import voxity.org.dialer.rejectCall
+import voxity.org.dialer.domain.models.CallState
+import voxity.org.dialer.domain.usecases.CallUseCases
 import kotlinx.coroutines.delay
-import voxity.org.dialer.getCallManagerAccess
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun InCallScreen(
     callState: CallState,
+    callUseCases: CallUseCases,
     modifier: Modifier = Modifier
 ) {
     var callDuration by remember { mutableStateOf(0L) }
@@ -98,9 +96,10 @@ fun InCallScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Call status
+                // Call status - add connecting state
                 Text(
                     text = when {
+                        callState.isConnecting -> "Connecting..."
                         callState.isRinging && callState.isIncoming -> "Incoming call"
                         callState.isRinging && !callState.isIncoming -> "Calling..."
                         callState.isActive -> formatDuration(callDuration)
@@ -113,7 +112,7 @@ fun InCallScreen(
             }
 
             // Bottom section - Call controls
-            CallControlButtons(callState = callState)
+            CallControlButtons(callState = callState, callUseCases = callUseCases)
         }
     }
 }
@@ -121,9 +120,21 @@ fun InCallScreen(
 @Composable
 private fun CallControlButtons(
     callState: CallState,
+    callUseCases: CallUseCases,
     modifier: Modifier = Modifier
 ) {
     when {
+        callState.isConnecting -> {
+            // Connecting/Dialing state - only show end call button
+            CallButton(
+                icon = Icons.Default.CallEnd,
+                backgroundColor = Color.Red,
+                onClick = { callUseCases.endCall() },
+                contentDescription = "End call",
+                modifier = Modifier.size(80.dp)
+            )
+        }
+
         callState.isRinging && callState.isIncoming -> {
             // Incoming call buttons
             Row(
@@ -135,7 +146,7 @@ private fun CallControlButtons(
                 CallButton(
                     icon = Icons.Default.CallEnd,
                     backgroundColor = Color.Red,
-                    onClick = { rejectCall() },
+                    onClick = { callUseCases.rejectCall() },
                     contentDescription = "Reject call",
                     modifier = Modifier.size(72.dp)
                 )
@@ -144,7 +155,7 @@ private fun CallControlButtons(
                 CallButton(
                     icon = Icons.Default.Call,
                     backgroundColor = Color.Green,
-                    onClick = { answerCall() },
+                    onClick = { callUseCases.answerCall() },
                     contentDescription = "Answer call",
                     modifier = Modifier.size(72.dp)
                 )
@@ -165,7 +176,7 @@ private fun CallControlButtons(
                         icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
                         backgroundColor = if (callState.isMuted) Color.Red else Color.Gray,
                         onClick = {
-                            getCallManagerAccess().muteCall(!callState.isMuted)
+                            callUseCases.muteCall(!callState.isMuted)
                         },
                         contentDescription = if (callState.isMuted) "Unmute" else "Mute"
                     )
@@ -197,9 +208,9 @@ private fun CallControlButtons(
                         backgroundColor = Color.Gray,
                         onClick = {
                             if (callState.isOnHold) {
-                                getCallManagerAccess().unholdCall()
+                                callUseCases.unholdCall()
                             } else {
-                                getCallManagerAccess().holdCall()
+                                callUseCases.holdCall()
                             }
                         },
                         contentDescription = if (callState.isOnHold) "Unhold" else "Hold"
@@ -226,7 +237,7 @@ private fun CallControlButtons(
                 CallButton(
                     icon = Icons.Default.CallEnd,
                     backgroundColor = Color.Red,
-                    onClick = { endCall() },
+                    onClick = { callUseCases.endCall() },
                     contentDescription = "End call",
                     modifier = Modifier.size(80.dp)
                 )
@@ -238,7 +249,7 @@ private fun CallControlButtons(
             CallButton(
                 icon = Icons.Default.CallEnd,
                 backgroundColor = Color.Red,
-                onClick = { endCall() },
+                onClick = { callUseCases.endCall() },
                 contentDescription = "End call",
                 modifier = Modifier.size(80.dp)
             )

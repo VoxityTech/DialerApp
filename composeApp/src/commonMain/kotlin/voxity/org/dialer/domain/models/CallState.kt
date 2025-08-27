@@ -1,4 +1,4 @@
-package voxity.org.dialer.models
+package voxity.org.dialer.domain.models
 
 import kotlinx.datetime.LocalDateTime
 
@@ -11,6 +11,7 @@ data class CallState(
     val isRinging: Boolean = false,
     val isOnHold: Boolean = false,
     val isMuted: Boolean = false,
+    val isConnecting: Boolean = false,
     val callStartTime: LocalDateTime? = null
 )
 

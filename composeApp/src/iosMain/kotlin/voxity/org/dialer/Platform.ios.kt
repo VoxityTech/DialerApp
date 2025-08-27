@@ -19,13 +19,3 @@ actual fun answerCall() {
 
 actual fun rejectCall() {
 }
-
-actual fun requestDefaultDialerRole() {
-}
-
-actual fun hasCallPermissions(): Boolean {
-    TODO("Not yet implemented")
-}
-
-actual fun requestCallPermissions() {
-}

@@ -15,11 +15,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
-import voxity.org.dialer.managers.CallManager
+import org.koin.compose.koinInject
+import voxity.org.dialer.domain.usecases.CallUseCases
 
 class MainActivity : ComponentActivity() {
 
-    private val callManager = CallManager.getInstance()
+    // Remove this line - it's causing the crash
+    // private val callManager = CallManager.getInstance()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -52,29 +54,29 @@ class MainActivity : ComponentActivity() {
         handleDialIntent(intent)
 
         setContent {
+            val callUseCases = koinInject<CallUseCases>()
             var showInCall by remember { mutableStateOf(false) }
 
             // Observe call state
-            val callState by callManager.currentCallState.collectAsState()
+            val callState by callUseCases.callState.collectAsState()
 
-            LaunchedEffect(callState.isActive, callState.isRinging) {
-                showInCall = callState.isActive || callState.isRinging
+            LaunchedEffect(callState.isActive, callState.isRinging, callState.isConnecting) {
+                showInCall = callState.isActive || callState.isRinging || callState.isConnecting
             }
 
             if (showInCall) {
-                // Show in-call UI
+                // Show in-call UI - pass callUseCases to the screen
                 InCallScreen(
                     callState = callState,
-                    onEndCall = { callManager.endCall() },
-                    onAnswerCall = { callManager.answerCall() },
-                    onRejectCall = { callManager.rejectCall() }
+                    callUseCases = callUseCases
                 )
             } else {
                 // Show main app
                 App(
                     onRequestDefaultDialer = { requestDefaultDialerRole() },
                     onRequestPermissions = { requestAllPermissions() },
-                    isDefaultDialer = isDefaultDialerApp()
+                    isDefaultDialer = isDefaultDialerApp(),
+                    callUseCases = callUseCases
                 )
             }
         }
@@ -86,12 +88,12 @@ class MainActivity : ComponentActivity() {
 
         // Check if we're the default dialer
         if (!isDefaultDialerApp()) {
-            // Show prompt to make default
             showDefaultDialerPrompt()
         }
     }
 
-    override fun onNewIntent(intent: Intent) {  // Remove the ? and super call
+
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleDialIntent(intent)
     }
@@ -100,7 +102,6 @@ class MainActivity : ComponentActivity() {
         when (intent.action) {
             Intent.ACTION_DIAL -> {
                 val number = intent.data?.schemeSpecificPart
-                // Handle dial intent - this will show our dialer with the number pre-filled
                 number?.let {
                     Toast.makeText(this, "Dialing: $it", Toast.LENGTH_SHORT).show()
                 }
@@ -108,6 +109,7 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_CALL -> {
                 val number = intent.data?.schemeSpecificPart
                 if (!number.isNullOrEmpty() && isDefaultDialerApp()) {
+                    // Use CallUseCases through Koin injection instead
                     makeCall(number)
                 }
             }
@@ -119,6 +121,7 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
 
     private fun hasAllPermissions(): Boolean {
         val permissions = arrayOf(

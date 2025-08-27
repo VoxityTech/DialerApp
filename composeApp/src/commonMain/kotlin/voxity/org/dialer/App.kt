@@ -10,14 +10,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import voxity.org.dialer.screens.CallHistoryScreen
 import voxity.org.dialer.screens.DialerScreen
-import voxity.org.dialer.models.CallState
+import voxity.org.dialer.domain.models.CallState
+import voxity.org.dialer.domain.usecases.CallUseCases
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(
     onRequestDefaultDialer: () -> Unit = {},
     onRequestPermissions: () -> Unit = {},
-    isDefaultDialer: Boolean = false
+    isDefaultDialer: Boolean = false,
+    callUseCases: CallUseCases
 ) {
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -75,7 +77,8 @@ fun App(
             when (selectedTab) {
                 0 -> DialerScreen(
                     modifier = Modifier.padding(paddingValues),
-                    canMakeCall = isDefaultDialer
+                    canMakeCall = isDefaultDialer,
+                    callUseCases = callUseCases
                 )
                 1 -> CallHistoryScreen(modifier = Modifier.padding(paddingValues))
                 2 -> SettingsScreen(
@@ -148,18 +151,15 @@ private fun SettingsScreen(
     }
 }
 
-// New InCall Screen component for the main app
 @Composable
 fun InCallScreen(
     callState: CallState,
-    onEndCall: () -> Unit,
-    onAnswerCall: () -> Unit,
-    onRejectCall: () -> Unit,
+    callUseCases: CallUseCases,
     modifier: Modifier = Modifier
 ) {
-    // Use the existing InCallScreen from screens package
-    voxity.org.dialer.screens.InCallScreen(
+        voxity.org.dialer.screens.InCallScreen(
         callState = callState,
+        callUseCases = callUseCases,
         modifier = modifier
     )
 }

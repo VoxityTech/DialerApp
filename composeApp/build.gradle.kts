@@ -58,6 +58,8 @@ kotlin {
             implementation(libs.androidx.material3)
             implementation(libs.androidx.material.icons.extended)
             implementation(libs.androidx.core.telecom)
+
+            implementation("io.insert-koin:koin-android:3.5.3")
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -69,6 +71,9 @@ kotlin {
 
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutines.core)
+
+            implementation("io.insert-koin:koin-core:3.5.3")
+            implementation("io.insert-koin:koin-compose:1.1.2")
         }
         iosMain.dependencies {
 

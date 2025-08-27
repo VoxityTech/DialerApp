@@ -10,6 +10,3 @@ expect fun makeCall(phoneNumber: String)
 expect fun endCall()
 expect fun answerCall()
 expect fun rejectCall()
-expect fun requestDefaultDialerRole()
-expect fun hasCallPermissions(): Boolean
-expect fun requestCallPermissions()
