@@ -1,3 +1,4 @@
+// src/commonMain/kotlin/voxity/org/dialer/App.kt
 package voxity.org.dialer
 
 import androidx.compose.foundation.layout.*
@@ -9,12 +10,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import voxity.org.dialer.domain.usecases.CallUseCases
+import voxity.org.dialer.presentation.viewmodel.DialerViewModel
 import voxity.org.dialer.presentation.CallHistoryScreen
 import voxity.org.dialer.presentation.ContactsScreen
 import voxity.org.dialer.presentation.SearchScreen
+import voxity.org.dialer.presentation.InCallScreen
 import voxity.org.dialer.presentation.components.DialerPopup
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,11 +23,31 @@ fun App(
     onRequestDefaultDialer: () -> Unit = {},
     onRequestPermissions: () -> Unit = {},
     isDefaultDialer: Boolean = false,
-    callUseCases: CallUseCases
+    viewModel: DialerViewModel
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var showDialer by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+
+    val contacts by viewModel.contacts.collectAsState()
+    val callHistory by viewModel.callHistory.collectAsState()
+    val callState by viewModel.callState.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    // Show in-call screen when there's an active call
+    if (callState.isActive || callState.isRinging || callState.isConnecting) {
+        InCallScreen(
+            callState = callState,
+            onAnswerCall = { viewModel.answerCall() },
+            onRejectCall = { viewModel.rejectCall() },
+            onEndCall = { viewModel.endCall() },
+            onHoldCall = { viewModel.holdCall() },
+            onUnholdCall = { viewModel.unholdCall() },
+            onMuteCall = { muted -> viewModel.muteCall(muted) }
+        )
+        return
+    }
 
     MaterialTheme {
         Scaffold(
@@ -55,7 +76,6 @@ fun App(
                         }
                     }
                 } else {
-                    // Add search bar when default dialer is set
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(8.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -106,19 +126,26 @@ fun App(
             when {
                 showSearch -> {
                     SearchScreen(
+                        contacts = contacts,
+                        callHistory = callHistory,
                         onBack = { showSearch = false },
-                        callUseCases = callUseCases
+                        onCallClick = { phoneNumber ->
+                            viewModel.makeCall(phoneNumber)
+                            showSearch = false
+                        }
                     )
                 }
                 else -> {
                     when (selectedTab) {
                         0 -> CallHistoryScreen(
-                            modifier = Modifier.padding(paddingValues),
-                            callUseCases = callUseCases
+                            callHistory = callHistory,
+                            onCallClick = { phoneNumber -> viewModel.makeCall(phoneNumber) },
+                            modifier = Modifier.padding(paddingValues)
                         )
                         1 -> ContactsScreen(
-                            modifier = Modifier.padding(paddingValues),
-                            callUseCases = callUseCases
+                            contacts = contacts,
+                            onCallClick = { phoneNumber -> viewModel.makeCall(phoneNumber) },
+                            modifier = Modifier.padding(paddingValues)
                         )
                     }
                 }
@@ -128,10 +155,28 @@ fun App(
                 DialerPopup(
                     onDismiss = { showDialer = false },
                     onCall = { number ->
-                        callUseCases.makeCall(number)
+                        viewModel.makeCall(number)
                         showDialer = false
                     }
                 )
+            }
+
+            // Show error snackbar if there's an error
+            error?.let { errorMessage ->
+                LaunchedEffect(errorMessage) {
+                    // Show snackbar or handle error display
+                    viewModel.clearError()
+                }
+            }
+
+            // Show loading indicator if needed
+            if (isLoading) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
         }
     }

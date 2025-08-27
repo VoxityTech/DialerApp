@@ -13,4 +13,8 @@ interface CallRepository {
     fun holdCall()
     fun unholdCall()
     fun muteCall(muted: Boolean)
+    fun blockNumber(phoneNumber: String): Boolean
+    fun unblockNumber(phoneNumber: String): Boolean
+    fun isNumberBlocked(phoneNumber: String): Boolean
+    fun getBlockedNumbers(): List<String>
 }

@@ -1,3 +1,4 @@
+/*
 package voxity.org.dialer.presentation
 
 import androidx.compose.runtime.Composable
@@ -12,3 +13,4 @@ actual fun ContactsScreen(
 ) {
 }
 
+*/

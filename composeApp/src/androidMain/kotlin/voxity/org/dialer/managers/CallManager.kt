@@ -1,3 +1,4 @@
+// src/androidMain/kotlin/voxity/org/dialer/managers/CallManager.kt
 package voxity.org.dialer.managers
 
 import android.content.Context
@@ -171,20 +172,19 @@ class CallManager private constructor(private val context: Context) : CallReposi
         _currentCallState.value = currentState.copy(isMuted = muted)
     }
 
-    // Add blocking methods
-    fun blockNumber(phoneNumber: String): Boolean {
+    override fun blockNumber(phoneNumber: String): Boolean {
         return blockManager.blockNumber(phoneNumber)
     }
 
-    fun unblockNumber(phoneNumber: String): Boolean {
+    override fun unblockNumber(phoneNumber: String): Boolean {
         return blockManager.unblockNumber(phoneNumber)
     }
 
-    fun isNumberBlocked(phoneNumber: String): Boolean {
+    override fun isNumberBlocked(phoneNumber: String): Boolean {
         return blockManager.isNumberBlocked(phoneNumber)
     }
 
-    fun getBlockedNumbers(): List<String> {
+    override fun getBlockedNumbers(): List<String> {
         return blockManager.getBlockedNumbersList()
     }
 

@@ -1,3 +1,4 @@
+/*
 package voxity.org.dialer.callwaiting
 
 import android.telecom.Call
@@ -94,4 +95,4 @@ class CallWaitingManager {
             false
         }
     }
-}
+}*/

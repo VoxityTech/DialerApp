@@ -21,7 +21,7 @@ class MyConnectionService : ConnectionService() {
         val connection = MyConnection(request?.address, false, request?.extras)
         connection.setInitializing()
 
-        callManager.addConnection(connection) // This should work now
+        callManager.addConnection(connection)
         return connection
     }
 

@@ -1,3 +1,4 @@
+/*
 package voxity.org.dialer.presentation
 
 import androidx.compose.runtime.Composable
@@ -9,4 +10,4 @@ actual fun CallHistoryScreen(
     modifier: Modifier,
     callUseCases: CallUseCases
 ) {
-}
+}*/

@@ -14,11 +14,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import org.koin.compose.koinInject
-import voxity.org.dialer.domain.usecases.CallUseCases
-import voxity.org.dialer.presentation.InCallScreen
+import voxity.org.dialer.presentation.viewmodel.DialerViewModel
 
 class MainActivity : ComponentActivity() {
 
@@ -39,29 +37,22 @@ class MainActivity : ComponentActivity() {
         initializeContext(this)
         handleDialIntent(intent)
 
+        // Update your MainActivity onCreate method:
         setContent {
-            val callUseCases = koinInject<CallUseCases>()
+            val viewModel = koinInject<DialerViewModel>()
             var showInCall by remember { mutableStateOf(false) }
-            val callState by callUseCases.callState.collectAsState()
+            val callState by viewModel.callState.collectAsState()
 
             LaunchedEffect(callState.isActive, callState.isRinging, callState.isConnecting) {
                 showInCall = callState.isActive || callState.isRinging || callState.isConnecting
             }
 
-            if (showInCall) {
-                InCallScreen(
-                    callState = callState,
-                    callUseCases = callUseCases,
-                    modifier = Modifier
-                )
-            } else {
-                App(
-                    onRequestDefaultDialer = { requestDefaultDialerRole() },
-                    onRequestPermissions = { requestAllPermissions() },
-                    isDefaultDialer = isDefaultDialerApp(),
-                    callUseCases = callUseCases
-                )
-            }
+            App(
+                onRequestDefaultDialer = { requestDefaultDialerRole() },
+                onRequestPermissions = { requestAllPermissions() },
+                isDefaultDialer = isDefaultDialerApp(),
+                viewModel = viewModel
+            )
         }
 
         if (!hasAllPermissions()) {
