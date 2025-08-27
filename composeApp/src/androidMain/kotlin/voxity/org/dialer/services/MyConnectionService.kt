@@ -21,7 +21,7 @@ class MyConnectionService : ConnectionService() {
         val connection = MyConnection(request?.address, false, request?.extras)
         connection.setInitializing()
 
-        callManager.addConnection(connection)
+        callManager.addConnection(connection) // This should work now
         return connection
     }
 
@@ -56,9 +56,7 @@ class MyConnectionService : ConnectionService() {
         private val requestExtras: Bundle?
     ) : Connection() {
 
-
         init {
-
             connectionCapabilities = CAPABILITY_SUPPORT_HOLD or CAPABILITY_HOLD
             audioModeIsVoip = false
 
@@ -70,7 +68,6 @@ class MyConnectionService : ConnectionService() {
         }
 
         override fun onAnswer() {
-
             setActive()
         }
 

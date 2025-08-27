@@ -5,12 +5,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import voxity.org.dialer.domain.usecases.CallUseCases
 import voxity.org.dialer.presentation.CallHistoryScreen
 import voxity.org.dialer.presentation.ContactsScreen
+import voxity.org.dialer.presentation.SearchScreen
 import voxity.org.dialer.presentation.components.DialerPopup
 
 
@@ -24,6 +26,7 @@ fun App(
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var showDialer by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
 
     MaterialTheme {
         Scaffold(
@@ -48,6 +51,28 @@ fun App(
                                 modifier = Modifier.padding(top = 8.dp)
                             ) {
                                 Text("Set as Default Dialer")
+                            }
+                        }
+                    }
+                } else {
+                    // Add search bar when default dialer is set
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Dialer",
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                            IconButton(onClick = { showSearch = true }) {
+                                Icon(Icons.Default.Search, contentDescription = "Search")
                             }
                         }
                     }
@@ -78,15 +103,25 @@ fun App(
                 }
             }
         ) { paddingValues ->
-            when (selectedTab) {
-                0 -> CallHistoryScreen(
-                    modifier = Modifier.padding(paddingValues),
-                    callUseCases = callUseCases
-                )
-                1 -> ContactsScreen(
-                    modifier = Modifier.padding(paddingValues),
-                    callUseCases = callUseCases
-                )
+            when {
+                showSearch -> {
+                    SearchScreen(
+                        onBack = { showSearch = false },
+                        callUseCases = callUseCases
+                    )
+                }
+                else -> {
+                    when (selectedTab) {
+                        0 -> CallHistoryScreen(
+                            modifier = Modifier.padding(paddingValues),
+                            callUseCases = callUseCases
+                        )
+                        1 -> ContactsScreen(
+                            modifier = Modifier.padding(paddingValues),
+                            callUseCases = callUseCases
+                        )
+                    }
+                }
             }
 
             if (showDialer) {

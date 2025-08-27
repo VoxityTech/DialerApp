@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import org.koin.compose.koinInject
 import voxity.org.dialer.domain.usecases.CallUseCases
@@ -50,7 +51,8 @@ class MainActivity : ComponentActivity() {
             if (showInCall) {
                 InCallScreen(
                     callState = callState,
-                    callUseCases = callUseCases
+                    callUseCases = callUseCases,
+                    modifier = Modifier
                 )
             } else {
                 App(

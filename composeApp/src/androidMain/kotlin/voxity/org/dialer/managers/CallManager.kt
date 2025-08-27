@@ -10,6 +10,9 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import voxity.org.dialer.domain.models.CallState
 import voxity.org.dialer.domain.repository.CallRepository
+import voxity.org.dialer.notifications.CallNotificationManager
+import voxity.org.dialer.audio.CallRingtoneManager
+import voxity.org.dialer.blocking.ContactBlockManager
 import kotlin.time.ExperimentalTime
 
 class CallManager private constructor(private val context: Context) : CallRepository {
@@ -24,6 +27,11 @@ class CallManager private constructor(private val context: Context) : CallReposi
 
     private val _currentCallState = MutableStateFlow(CallState())
     override val currentCallState: StateFlow<CallState> = _currentCallState.asStateFlow()
+
+    // New components
+    private val notificationManager = CallNotificationManager(context)
+    private val ringtoneManager = CallRingtoneManager(context)
+    private val blockManager = ContactBlockManager.getInstance(context)
 
     companion object {
         @Volatile
@@ -40,6 +48,12 @@ class CallManager private constructor(private val context: Context) : CallReposi
     }
 
     override fun makeCall(phoneNumber: String) {
+        // Check if number is blocked before making call
+        if (blockManager.isNumberBlocked(phoneNumber)) {
+            // Optionally notify user that the number is blocked
+            return
+        }
+
         _currentCallState.value = CallState(
             isConnecting = true,
             phoneNumber = phoneNumber,
@@ -53,6 +67,12 @@ class CallManager private constructor(private val context: Context) : CallReposi
         val currentCalls = _activeCalls.value.toMutableList()
         currentCalls.add(call)
         _activeCalls.value = currentCalls
+
+        // Handle incoming call
+        if (call.details.callDirection == Call.Details.DIRECTION_INCOMING) {
+            handleIncomingCall(call)
+        }
+
         updateCurrentCallState()
     }
 
@@ -60,10 +80,23 @@ class CallManager private constructor(private val context: Context) : CallReposi
         val currentCalls = _activeCalls.value.toMutableList()
         currentCalls.remove(call)
         _activeCalls.value = currentCalls
+
+        // Stop ringtone and cancel notification when call ends
+        ringtoneManager.stopRinging()
+        notificationManager.cancelCallNotification()
+
         updateCurrentCallState()
     }
 
-    fun updateCallState() {
+    // Add missing methods for Connection handling
+    fun addConnection(connection: Connection) {
+        val currentConnections = _activeConnections.value.toMutableList()
+        currentConnections.add(connection)
+        _activeConnections.value = currentConnections
+        updateConnectionState()
+    }
+
+    fun updateConnectionState() {
         updateCurrentCallState()
     }
 
@@ -71,15 +104,88 @@ class CallManager private constructor(private val context: Context) : CallReposi
         updateCurrentCallState()
     }
 
-    fun addConnection(connection: Connection) {
-        val currentConnections = _activeConnections.value.toMutableList()
-        currentConnections.add(connection)
-        _activeConnections.value = currentConnections
+    fun updateCallState() {
         updateCurrentCallState()
     }
 
-    fun updateConnectionState() {
-        updateCurrentCallState()
+    private fun handleIncomingCall(call: Call) {
+        val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
+        val callerName = call.details.contactDisplayName ?: phoneNumber
+
+        // Check if number is blocked
+        if (blockManager.isNumberBlocked(phoneNumber)) {
+            // Auto-reject blocked calls
+            call.reject(false, "Number blocked")
+            removeCall(call)
+            return
+        }
+
+        // Show notification and start ringtone
+        notificationManager.showIncomingCallNotification(callerName, phoneNumber)
+        ringtoneManager.startRinging()
+    }
+
+    override fun answerCall() {
+        ringtoneManager.stopRinging()
+        notificationManager.cancelCallNotification()
+
+        _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
+            call.answer(0)
+        }
+    }
+
+    override fun rejectCall() {
+        ringtoneManager.stopRinging()
+        notificationManager.cancelCallNotification()
+
+        _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
+            call.reject(false, "User rejected")
+        }
+        _currentCallState.value = CallState()
+    }
+
+    override fun endCall() {
+        ringtoneManager.stopRinging()
+        notificationManager.cancelCallNotification()
+
+        _activeCalls.value.firstOrNull()?.let { call ->
+            call.disconnect()
+        }
+        _currentCallState.value = CallState()
+    }
+
+    override fun holdCall() {
+        _activeCalls.value.firstOrNull { it.state == Call.STATE_ACTIVE }?.let { call ->
+            call.hold()
+        }
+    }
+
+    override fun unholdCall() {
+        _activeCalls.value.firstOrNull { it.state == Call.STATE_HOLDING }?.let { call ->
+            call.unhold()
+        }
+    }
+
+    override fun muteCall(muted: Boolean) {
+        val currentState = _currentCallState.value
+        _currentCallState.value = currentState.copy(isMuted = muted)
+    }
+
+    // Add blocking methods
+    fun blockNumber(phoneNumber: String): Boolean {
+        return blockManager.blockNumber(phoneNumber)
+    }
+
+    fun unblockNumber(phoneNumber: String): Boolean {
+        return blockManager.unblockNumber(phoneNumber)
+    }
+
+    fun isNumberBlocked(phoneNumber: String): Boolean {
+        return blockManager.isNumberBlocked(phoneNumber)
+    }
+
+    fun getBlockedNumbers(): List<String> {
+        return blockManager.getBlockedNumbersList()
     }
 
     @OptIn(ExperimentalTime::class)
@@ -106,49 +212,9 @@ class CallManager private constructor(private val context: Context) : CallReposi
             )
             _currentCallState.value = callState
         } else {
-            // Only reset if we're not in connecting state
             if (!_currentCallState.value.isConnecting) {
                 _currentCallState.value = CallState()
             }
         }
-    }
-
-    override fun answerCall() {
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
-            call.answer(0)
-        }
-    }
-
-    override fun rejectCall() {
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
-            call.reject(false, "User rejected")
-        }
-        // Reset state after rejection
-        _currentCallState.value = CallState()
-    }
-
-    override fun endCall() {
-        _activeCalls.value.firstOrNull()?.let { call ->
-            call.disconnect()
-        }
-        // Reset state after ending call
-        _currentCallState.value = CallState()
-    }
-
-    override fun holdCall() {
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_ACTIVE }?.let { call ->
-            call.hold()
-        }
-    }
-
-    override fun unholdCall() {
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_HOLDING }?.let { call ->
-            call.unhold()
-        }
-    }
-
-    override fun muteCall(muted: Boolean) {
-        val currentState = _currentCallState.value
-        _currentCallState.value = currentState.copy(isMuted = muted)
     }
 }

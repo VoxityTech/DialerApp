@@ -6,8 +6,9 @@ import voxity.org.dialer.domain.models.CallState
 import voxity.org.dialer.domain.usecases.CallUseCases
 
 @Composable
-expect fun InCallScreen(
+actual fun InCallScreen(
     callState: CallState,
     callUseCases: CallUseCases,
     modifier: Modifier
-)
+) {
+}
