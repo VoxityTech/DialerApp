@@ -65,7 +65,7 @@ class MyInCallService : InCallService() {
     private val callCallback = object : Call.Callback() {
         override fun onStateChanged(call: Call, state: Int) {
             super.onStateChanged(call, state)
-            callManager.updateCallState(call, state)
+            callManager.updateCallState()
 
             when (state) {
                 Call.STATE_RINGING -> {
@@ -93,7 +93,7 @@ class MyInCallService : InCallService() {
 
         override fun onDetailsChanged(call: Call, details: Call.Details) {
             super.onDetailsChanged(call, details)
-            callManager.updateCallDetails(call, details)
+            callManager.updateCallDetails()
         }
 
         override fun onPostDialWait(call: Call, remainingPostDialSequence: String) {

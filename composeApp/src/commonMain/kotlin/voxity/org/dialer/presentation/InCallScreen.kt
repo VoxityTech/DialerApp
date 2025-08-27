@@ -1,4 +1,4 @@
-package voxity.org.dialer.screens
+package voxity.org.dialer.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import voxity.org.dialer.components.CallButton
+import voxity.org.dialer.presentation.components.CallButton
 import voxity.org.dialer.domain.models.CallState
 import voxity.org.dialer.domain.usecases.CallUseCases
 import kotlinx.coroutines.delay

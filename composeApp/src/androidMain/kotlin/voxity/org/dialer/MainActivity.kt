@@ -17,11 +17,9 @@ import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import org.koin.compose.koinInject
 import voxity.org.dialer.domain.usecases.CallUseCases
+import voxity.org.dialer.presentation.InCallScreen
 
 class MainActivity : ComponentActivity() {
-
-    // Remove this line - it's causing the crash
-    // private val callManager = CallManager.getInstance()
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -34,30 +32,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val defaultDialerLauncher = registerForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            Toast.makeText(this, "App set as default dialer", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Not set as default dialer", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize the application context for platform functions
         initializeContext(this)
-
-        // Handle incoming DIAL intents
         handleDialIntent(intent)
 
         setContent {
             val callUseCases = koinInject<CallUseCases>()
             var showInCall by remember { mutableStateOf(false) }
-
-            // Observe call state
             val callState by callUseCases.callState.collectAsState()
 
             LaunchedEffect(callState.isActive, callState.isRinging, callState.isConnecting) {
@@ -65,13 +48,11 @@ class MainActivity : ComponentActivity() {
             }
 
             if (showInCall) {
-                // Show in-call UI - pass callUseCases to the screen
                 InCallScreen(
                     callState = callState,
                     callUseCases = callUseCases
                 )
             } else {
-                // Show main app
                 App(
                     onRequestDefaultDialer = { requestDefaultDialerRole() },
                     onRequestPermissions = { requestAllPermissions() },
@@ -81,14 +62,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Check and request permissions
         if (!hasAllPermissions()) {
             requestAllPermissions()
         }
 
-        // Check if we're the default dialer
         if (!isDefaultDialerApp()) {
             showDefaultDialerPrompt()
+        }
+    }
+
+    private val defaultDialerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            Toast.makeText(this, "App set as default dialer", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "Not set as default dialer", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -147,7 +136,6 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.ANSWER_PHONE_CALLS
         )
-
         permissionLauncher.launch(permissions)
     }
 

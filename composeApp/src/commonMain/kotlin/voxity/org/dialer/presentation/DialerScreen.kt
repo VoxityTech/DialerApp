@@ -1,4 +1,4 @@
-package voxity.org.dialer.screens
+package voxity.org.dialer.presentation
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -12,7 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import voxity.org.dialer.components.DialPad
+import voxity.org.dialer.presentation.components.DialPad
 import voxity.org.dialer.domain.usecases.CallUseCases
 
 @OptIn(ExperimentalMaterial3Api::class)

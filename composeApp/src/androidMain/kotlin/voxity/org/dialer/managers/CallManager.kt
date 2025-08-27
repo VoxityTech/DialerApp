@@ -40,7 +40,6 @@ class CallManager private constructor(private val context: Context) : CallReposi
     }
 
     override fun makeCall(phoneNumber: String) {
-        // Set connecting state immediately when call is initiated
         _currentCallState.value = CallState(
             isConnecting = true,
             phoneNumber = phoneNumber,
@@ -64,11 +63,11 @@ class CallManager private constructor(private val context: Context) : CallReposi
         updateCurrentCallState()
     }
 
-    fun updateCallState(call: Call, state: Int) {
+    fun updateCallState() {
         updateCurrentCallState()
     }
 
-    fun updateCallDetails(call: Call, details: Call.Details) {
+    fun updateCallDetails() {
         updateCurrentCallState()
     }
 
@@ -76,12 +75,10 @@ class CallManager private constructor(private val context: Context) : CallReposi
         val currentConnections = _activeConnections.value.toMutableList()
         currentConnections.add(connection)
         _activeConnections.value = currentConnections
-        // Update call state when connection is added
         updateCurrentCallState()
     }
 
-    fun updateConnectionState(connection: Connection, state: Int) {
-        // Update call state based on connection state
+    fun updateConnectionState() {
         updateCurrentCallState()
     }
 

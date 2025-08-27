@@ -1,4 +1,4 @@
-package voxity.org.dialer.components
+package voxity.org.dialer.presentation.components
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape

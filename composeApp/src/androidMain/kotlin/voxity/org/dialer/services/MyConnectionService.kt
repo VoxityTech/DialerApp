@@ -114,7 +114,7 @@ class MyConnectionService : ConnectionService() {
 
         override fun onStateChanged(state: Int) {
             super.onStateChanged(state)
-            callManager.updateConnectionState(this, state)
+            callManager.updateConnectionState()
         }
 
         override fun onPostDialContinue(proceed: Boolean) {

@@ -8,10 +8,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import voxity.org.dialer.screens.CallHistoryScreen
-import voxity.org.dialer.screens.DialerScreen
-import voxity.org.dialer.domain.models.CallState
 import voxity.org.dialer.domain.usecases.CallUseCases
+import voxity.org.dialer.presentation.CallHistoryScreen
+import voxity.org.dialer.presentation.ContactsScreen
+import voxity.org.dialer.presentation.components.DialerPopup
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,6 +23,7 @@ fun App(
     callUseCases: CallUseCases
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    var showDialer by remember { mutableStateOf(false) }
 
     MaterialTheme {
         Scaffold(
@@ -54,112 +56,48 @@ fun App(
             bottomBar = {
                 NavigationBar {
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.Dialpad, contentDescription = "Dialer") },
-                        label = { Text("Dialer") },
+                        icon = { Icon(Icons.Default.History, contentDescription = "Call History") },
+                        label = { Text("Call History") },
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 }
                     )
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.History, contentDescription = "History") },
-                        label = { Text("History") },
+                        icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
+                        label = { Text("Contacts") },
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 }
                     )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 }
-                    )
+                }
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { showDialer = true },
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Dialpad, contentDescription = "Dialer")
                 }
             }
         ) { paddingValues ->
             when (selectedTab) {
-                0 -> DialerScreen(
+                0 -> CallHistoryScreen(
                     modifier = Modifier.padding(paddingValues),
-                    canMakeCall = isDefaultDialer,
                     callUseCases = callUseCases
                 )
-                1 -> CallHistoryScreen(modifier = Modifier.padding(paddingValues))
-                2 -> SettingsScreen(
+                1 -> ContactsScreen(
                     modifier = Modifier.padding(paddingValues),
-                    onRequestDefaultDialer = onRequestDefaultDialer,
-                    onRequestPermissions = onRequestPermissions,
-                    isDefaultDialer = isDefaultDialer
+                    callUseCases = callUseCases
+                )
+            }
+
+            if (showDialer) {
+                DialerPopup(
+                    onDismiss = { showDialer = false },
+                    onCall = { number ->
+                        callUseCases.makeCall(number)
+                        showDialer = false
+                    }
                 )
             }
         }
     }
-}
-
-@Composable
-private fun SettingsScreen(
-    modifier: Modifier = Modifier,
-    onRequestDefaultDialer: () -> Unit,
-    onRequestPermissions: () -> Unit,
-    isDefaultDialer: Boolean
-) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Settings",
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        Card(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (isDefaultDialer) Color.Green.copy(alpha = 0.1f) else Color.Red.copy(alpha = 0.1f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = if (isDefaultDialer) "✅ Default Dialer Active" else "❌ Not Default Dialer",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isDefaultDialer) Color.Green else Color.Red
-                )
-                Text(
-                    text = if (isDefaultDialer)
-                        "You can make and receive calls with this app"
-                    else
-                        "Set as default dialer to enable calling features",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
-        }
-
-        Button(
-            onClick = onRequestDefaultDialer,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isDefaultDialer
-        ) {
-            Text(if (isDefaultDialer) "Already Default Dialer" else "Set as Default Dialer")
-        }
-
-        Button(
-            onClick = onRequestPermissions,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
-        ) {
-            Text("Request Call Permissions")
-        }
-    }
-}
-
-@Composable
-fun InCallScreen(
-    callState: CallState,
-    callUseCases: CallUseCases,
-    modifier: Modifier = Modifier
-) {
-        voxity.org.dialer.screens.InCallScreen(
-        callState = callState,
-        callUseCases = callUseCases,
-        modifier = modifier
-    )
 }
