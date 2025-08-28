@@ -1,4 +1,4 @@
-rootProject.name = "Dialer"
+rootProject.name = "voxity-dialer"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
@@ -30,4 +30,6 @@ dependencyResolutionManagement {
     }
 }
 
-include(":composeApp")
+include(":dialer-core")
+include(":dialer-ui")
+include(":standard-dialer")
