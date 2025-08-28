@@ -24,7 +24,6 @@ class CallUseCases(
 
     val callState = callRepository.currentCallState
 
-    // These remain suspend as they involve data access
     suspend fun getContacts() = contactRepository.getContacts()
     suspend fun getCallHistory() = callHistoryRepository.getCallHistory()
 }

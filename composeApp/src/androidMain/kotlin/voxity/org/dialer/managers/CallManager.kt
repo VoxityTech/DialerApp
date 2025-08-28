@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import voxity.org.dialer.audio.CallAudioManager
 import voxity.org.dialer.domain.models.CallState
 import voxity.org.dialer.domain.repository.CallRepository
 import voxity.org.dialer.notifications.CallNotificationManager
@@ -31,8 +32,10 @@ class CallManager private constructor(private val context: Context) : CallReposi
 
     // New components
     private val notificationManager = CallNotificationManager(context)
-    private val ringtoneManager = CallRingtoneManager(context)
+    val ringtoneManager = CallRingtoneManager(context)
     private val blockManager = ContactBlockManager.getInstance(context)
+
+    private val audioManager = CallAudioManager(context)
 
     companion object {
         @Volatile
@@ -49,9 +52,7 @@ class CallManager private constructor(private val context: Context) : CallReposi
     }
 
     override fun makeCall(phoneNumber: String) {
-        // Check if number is blocked before making call
         if (blockManager.isNumberBlocked(phoneNumber)) {
-            // Optionally notify user that the number is blocked
             return
         }
 
@@ -69,7 +70,6 @@ class CallManager private constructor(private val context: Context) : CallReposi
         currentCalls.add(call)
         _activeCalls.value = currentCalls
 
-        // Handle incoming call
         if (call.details.callDirection == Call.Details.DIRECTION_INCOMING) {
             handleIncomingCall(call)
         }
@@ -82,14 +82,12 @@ class CallManager private constructor(private val context: Context) : CallReposi
         currentCalls.remove(call)
         _activeCalls.value = currentCalls
 
-        // Stop ringtone and cancel notification when call ends
         ringtoneManager.stopRinging()
         notificationManager.cancelCallNotification()
 
         updateCurrentCallState()
     }
 
-    // Add missing methods for Connection handling
     fun addConnection(connection: Connection) {
         val currentConnections = _activeConnections.value.toMutableList()
         currentConnections.add(connection)
@@ -113,7 +111,6 @@ class CallManager private constructor(private val context: Context) : CallReposi
         val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
         val callerName = call.details.contactDisplayName ?: phoneNumber
 
-        // Check if number is blocked
         if (blockManager.isNumberBlocked(phoneNumber)) {
             // Auto-reject blocked calls
             call.reject(false, "Number blocked")
@@ -121,7 +118,6 @@ class CallManager private constructor(private val context: Context) : CallReposi
             return
         }
 
-        // Show notification and start ringtone
         notificationManager.showIncomingCallNotification(callerName, phoneNumber)
         ringtoneManager.startRinging()
     }
@@ -158,16 +154,19 @@ class CallManager private constructor(private val context: Context) : CallReposi
     override fun holdCall() {
         _activeCalls.value.firstOrNull { it.state == Call.STATE_ACTIVE }?.let { call ->
             call.hold()
+            updateCurrentCallState()
         }
     }
 
     override fun unholdCall() {
         _activeCalls.value.firstOrNull { it.state == Call.STATE_HOLDING }?.let { call ->
             call.unhold()
+            updateCurrentCallState()
         }
     }
 
     override fun muteCall(muted: Boolean) {
+        audioManager.setMute(muted)
         val currentState = _currentCallState.value
         _currentCallState.value = currentState.copy(isMuted = muted)
     }
@@ -211,9 +210,19 @@ class CallManager private constructor(private val context: Context) : CallReposi
                 } else _currentCallState.value.callStartTime
             )
             _currentCallState.value = callState
+
+            // Handle audio focus
+            if (callState.isActive) {
+                audioManager.requestAudioFocus()
+            } else if (!callState.isRinging && !callState.isOnHold && !callState.isConnecting) {
+                audioManager.abandonAudioFocus()
+            }
         } else {
-            if (!_currentCallState.value.isConnecting) {
+            // Only clear state if not connecting
+            val currentState = _currentCallState.value
+            if (!currentState.isConnecting) {
                 _currentCallState.value = CallState()
+                audioManager.abandonAudioFocus()
             }
         }
     }

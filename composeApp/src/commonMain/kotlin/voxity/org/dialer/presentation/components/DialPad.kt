@@ -51,7 +51,6 @@ fun DialPad(
             }
         }
 
-        // Call button
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center

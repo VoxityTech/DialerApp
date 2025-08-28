@@ -6,28 +6,33 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import voxity.org.dialer.presentation.viewmodel.DialerViewModel
+import kotlinx.coroutines.launch
 import voxity.org.dialer.presentation.CallHistoryScreen
 import voxity.org.dialer.presentation.ContactsScreen
-import voxity.org.dialer.presentation.SearchScreen
 import voxity.org.dialer.presentation.InCallScreen
-import voxity.org.dialer.presentation.components.DialerPopup
+import voxity.org.dialer.presentation.SearchScreen
+import voxity.org.dialer.presentation.components.DialerBottomSheet
+import voxity.org.dialer.presentation.viewmodel.DialerViewModel
+import voxity.org.dialer.ui.theme.DialerTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun App(
-    onRequestDefaultDialer: () -> Unit = {},
-    onRequestPermissions: () -> Unit = {},
-    isDefaultDialer: Boolean = false,
-    viewModel: DialerViewModel
+    viewModel: DialerViewModel,
+    onRequestDefaultDialer: () -> Unit,
+    onRequestPermissions: () -> Unit,
+    isDefaultDialer: Boolean
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
-    var showDialer by remember { mutableStateOf(false) }
-    var showSearch by remember { mutableStateOf(false) }
+    var selectedTab by remember { mutableStateOf(Screen.CallHistory) }
+    var showDialerPopup by remember { mutableStateOf(false) }
+    var showSearchScreen by remember { mutableStateOf(false) }
 
     val contacts by viewModel.contacts.collectAsState()
     val callHistory by viewModel.callHistory.collectAsState()
@@ -35,149 +40,194 @@ fun App(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    // Show in-call screen when there's an active call
-    if (callState.isActive || callState.isRinging || callState.isConnecting) {
-        InCallScreen(
-            callState = callState,
-            onAnswerCall = { viewModel.answerCall() },
-            onRejectCall = { viewModel.rejectCall() },
-            onEndCall = { viewModel.endCall() },
-            onHoldCall = { viewModel.holdCall() },
-            onUnholdCall = { viewModel.unholdCall() },
-            onMuteCall = { muted -> viewModel.muteCall(muted) }
-        )
-        return
+    val snackbarHostState = remember { SnackbarHostState() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Handle error messages
+    LaunchedEffect(error) {
+        error?.let {
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(
+                    message = it,
+                    duration = SnackbarDuration.Long
+                )
+                viewModel.clearError()
+            }
+        }
     }
 
-    MaterialTheme {
-        Scaffold(
-            topBar = {
-                if (!isDefaultDialer) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                "⚠️ Not Default Dialer",
-                                color = Color.Red,
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                "Set as default dialer to make and receive calls",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Button(
-                                onClick = onRequestDefaultDialer,
-                                modifier = Modifier.padding(top = 8.dp)
-                            ) {
-                                Text("Set as Default Dialer")
-                            }
-                        }
-                    }
-                } else {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(8.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+    // Determine if InCallScreen should be shown
+    val showInCallScreen = callState.isActive || callState.isRinging ||
+            callState.isConnecting || callState.isOnHold
+
+    DialerTheme {
+
+        if (showInCallScreen) {
+            InCallScreen(
+                callState = callState,
+                onAnswerCall = viewModel::answerCall,
+                onRejectCall = viewModel::rejectCall,
+                onEndCall = viewModel::endCall,
+                onHoldCall = viewModel::holdCall,
+                onUnholdCall = viewModel::unholdCall,
+                onMuteCall = viewModel::muteCall
+            )
+        } else {
+            // Main UI when not in a call
+            MaterialTheme { // Apply your app's theme
+                Scaffold(
+                    snackbarHost = { SnackbarHost(snackbarHostState) },
+                    topBar = {
+                        AppTopBar(
+                            isDefaultDialer = isDefaultDialer,
+                            onRequestDefaultDialer = onRequestDefaultDialer,
+                            onSearchClick = { showSearchScreen = true },
+                            // Optional: Add a refresh button
+                            onRefreshClick = { viewModel.refreshAllData() }
+                        )
+                    },
+                    bottomBar = {
+                        AppBottomNavigationBar(
+                            currentScreen = selectedTab,
+                            onScreenSelected = { selectedTab = it }
+                        )
+                    },
+                    floatingActionButton = {
+                        FloatingActionButton(
+                            onClick = { showDialerPopup = true },
+                            containerColor = MaterialTheme.colorScheme.primary
                         ) {
-                            Text(
-                                text = "Dialer",
-                                style = MaterialTheme.typography.titleLarge
+                            Icon(Icons.Default.Dialpad, contentDescription = "Open Dialer")
+                        }
+                    }
+                ) { paddingValues ->
+                    Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+                        if (showSearchScreen) {
+                            SearchScreen(
+                                contacts = contacts,
+                                callHistory = callHistory,
+                                onBack = { showSearchScreen = false },
+                                onCallClick = { phoneNumber ->
+                                    viewModel.makeCall(phoneNumber)
+                                    showSearchScreen = false
+                                }
                             )
-                            IconButton(onClick = { showSearch = true }) {
-                                Icon(Icons.Default.Search, contentDescription = "Search")
+                        } else {
+                            when (selectedTab) {
+                                Screen.CallHistory -> CallHistoryScreen(
+                                    callHistory = callHistory,
+                                    onCallClick = viewModel::makeCall
+                                )
+
+                                Screen.Contacts -> ContactsScreen(
+                                    contacts = contacts,
+                                    onCallClick = viewModel::makeCall,
+                                    onBlockNumber = viewModel::blockNumber,
+                                    onUnblockNumber = viewModel::unblockNumber
+                                )
+                            }
+                        }
+
+                        if (showDialerPopup) {
+                            DialerBottomSheet(
+                                isVisible = showDialerPopup,
+                                onDismiss = { showDialerPopup = false },
+                                onCall = { number ->
+                                    viewModel.makeCall(number)
+                                    showDialerPopup = false
+                                }
+                            )
+                        }
+
+                        if (isLoading) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().align(Alignment.Center),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
                             }
                         }
                     }
-                }
-            },
-            bottomBar = {
-                NavigationBar {
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.History, contentDescription = "Call History") },
-                        label = { Text("Call History") },
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 }
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
-                        label = { Text("Contacts") },
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 }
-                    )
-                }
-            },
-            floatingActionButton = {
-                FloatingActionButton(
-                    onClick = { showDialer = true },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(Icons.Default.Dialpad, contentDescription = "Dialer")
-                }
-            }
-        ) { paddingValues ->
-            when {
-                showSearch -> {
-                    SearchScreen(
-                        contacts = contacts,
-                        callHistory = callHistory,
-                        onBack = { showSearch = false },
-                        onCallClick = { phoneNumber ->
-                            viewModel.makeCall(phoneNumber)
-                            showSearch = false
-                        }
-                    )
-                }
-                else -> {
-                    when (selectedTab) {
-                        0 -> CallHistoryScreen(
-                            callHistory = callHistory,
-                            onCallClick = { phoneNumber -> viewModel.makeCall(phoneNumber) },
-                            modifier = Modifier.padding(paddingValues)
-                        )
-                        1 -> ContactsScreen(
-                            contacts = contacts,
-                            onCallClick = { phoneNumber -> viewModel.makeCall(phoneNumber) },
-                            modifier = Modifier.padding(paddingValues)
-                        )
-                    }
-                }
-            }
-
-            if (showDialer) {
-                DialerPopup(
-                    onDismiss = { showDialer = false },
-                    onCall = { number ->
-                        viewModel.makeCall(number)
-                        showDialer = false
-                    }
-                )
-            }
-
-            // Show error snackbar if there's an error
-            error?.let { errorMessage ->
-                LaunchedEffect(errorMessage) {
-                    // Show snackbar or handle error display
-                    viewModel.clearError()
-                }
-            }
-
-            // Show loading indicator if needed
-            if (isLoading) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
                 }
             }
         }
+    }
+}
+
+enum class Screen {
+    CallHistory,
+    Contacts
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppTopBar(
+    isDefaultDialer: Boolean,
+    onRequestDefaultDialer: () -> Unit,
+    onSearchClick: () -> Unit,
+    onRefreshClick: () -> Unit
+) {
+    Column {
+        if (!isDefaultDialer) {
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        "⚠️ Not Default Dialer",
+                        color = Color.Red,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        "Set as default dialer to make and receive calls properly.",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                    )
+                    Button(onClick = onRequestDefaultDialer) {
+                        Text("Set as Default")
+                    }
+                }
+            }
+        }
+        TopAppBar(
+            title = { Text("Dialer") },
+            actions = {
+                IconButton(onClick = onSearchClick) {
+                    Icon(Icons.Default.Search, contentDescription = "Search")
+                }
+                IconButton(onClick = onRefreshClick) { // Refresh button
+                    Icon(Icons.Default.Refresh, contentDescription = "Refresh Data")
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+private fun AppBottomNavigationBar(
+    currentScreen: Screen,
+    onScreenSelected: (Screen) -> Unit
+) {
+    NavigationBar {
+        NavigationBarItem(
+            icon = { Icon(Icons.Default.History, contentDescription = "Call History") },
+            label = { Text("History") },
+            selected = currentScreen == Screen.CallHistory,
+            onClick = { onScreenSelected(Screen.CallHistory) }
+        )
+        NavigationBarItem(
+            icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
+            label = { Text("Contacts") },
+            selected = currentScreen == Screen.Contacts,
+            onClick = { onScreenSelected(Screen.Contacts) }
+        )
     }
 }

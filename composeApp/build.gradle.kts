@@ -56,10 +56,10 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.androidx.navigation.compose)
             implementation(libs.androidx.material3)
-            implementation(libs.androidx.material.icons.extended)
+//            implementation(libs.androidx.material.icons.extended)
             implementation(libs.androidx.core.telecom)
 
-            implementation("io.insert-koin:koin-android:3.5.3")
+            implementation(libs.koin.android)
         }
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -71,9 +71,10 @@ kotlin {
 
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(compose.materialIconsExtended)
 
-            implementation("io.insert-koin:koin-core:3.5.3")
-            implementation("io.insert-koin:koin-compose:1.1.2")
+            implementation(libs.koin.core)
+            implementation(libs.koin.compose)
         }
         iosMain.dependencies {
 

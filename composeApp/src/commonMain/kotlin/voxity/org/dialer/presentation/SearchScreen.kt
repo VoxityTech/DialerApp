@@ -88,7 +88,6 @@ fun SearchScreen(
             }
         }
 
-        // Search results
         when {
             searchQuery.isEmpty() -> {
                 Box(
@@ -249,14 +248,12 @@ private fun performSearch(
 ): List<SearchResult> {
     val results = mutableListOf<SearchResult>()
 
-    // Search contacts
     val matchingContacts = contacts.filter { contact ->
         contact.name.contains(query, ignoreCase = true) ||
                 contact.phoneNumbers.any { it.contains(query) }
     }
     results.addAll(matchingContacts.map { SearchResult.ContactResult(it) })
 
-    // Search call history
     val matchingCallHistory = callHistory.filter { callLog ->
         callLog.contactName.contains(query, ignoreCase = true) ||
                 callLog.phoneNumber.contains(query)

@@ -36,7 +36,6 @@ fun InCallScreen(
 ) {
     var callDuration by remember { mutableStateOf(0L) }
 
-    // Real-time call duration timer
     LaunchedEffect(callState.isActive) {
         if (callState.isActive) {
             while (callState.isActive) {
@@ -60,13 +59,11 @@ fun InCallScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top section - Call info
             AnimatedCallInfo(
                 callState = callState,
                 callDuration = callDuration
             )
 
-            // Bottom section - Call controls
             AnimatedCallControls(
                 callState = callState,
                 onAnswerCall = onAnswerCall,
@@ -96,7 +93,6 @@ private fun AnimatedCallInfo(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(top = 64.dp)
         ) {
-            // Contact avatar with pulse animation for incoming calls
             val infiniteTransition = rememberInfiniteTransition()
             val pulseScale by infiniteTransition.animateFloat(
                 initialValue = 1f,

@@ -7,5 +7,5 @@ import voxity.org.dialer.presentation.viewmodel.DialerViewModel
 
 val commonModule = module {
     factory { CallUseCases(get(), get(), get()) }
-    factory { DialerViewModel(get()) }
+    factory { DialerViewModel(get(),get()) }
 }

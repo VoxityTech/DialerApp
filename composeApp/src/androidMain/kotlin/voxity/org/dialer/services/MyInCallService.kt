@@ -5,6 +5,7 @@ import android.os.IBinder
 import android.telecom.Call
 import android.telecom.InCallService
 import android.util.Log
+import android.view.KeyEvent
 import voxity.org.dialer.MainActivity
 import voxity.org.dialer.managers.CallManager
 
@@ -56,6 +57,8 @@ class MyInCallService : InCallService() {
 
     override fun onSilenceRinger() {
         super.onSilenceRinger()
+        Log.d(TAG, "onSilenceRinger() called - silencing ringtone")
+        callManager.ringtoneManager.silenceRinging()
     }
 
     override fun onConnectionEvent(call: Call, event: String, extras: android.os.Bundle?) {

@@ -74,7 +74,6 @@ class ContactBlockManager private constructor(private val context: Context) {
     private fun normalizePhoneNumber(phoneNumber: String): String {
         return phoneNumber.replace(Regex("[^\\d]"), "")
             .let { cleaned ->
-                // Remove country code if present
                 when {
                     cleaned.startsWith("1") && cleaned.length == 11 -> cleaned.substring(1)
                     cleaned.startsWith("91") && cleaned.length == 12 -> cleaned.substring(2)

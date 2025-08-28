@@ -24,7 +24,7 @@ class AndroidCallHistoryRepository(
                     "MISSED" -> CallType.MISSED
                     else -> CallType.MISSED
                 },
-                timestamp = kotlin.time.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()), // You'll need to parse the actual date from androidCallLog.date
+                timestamp = kotlin.time.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
                 duration = androidCallLog.duration
             )
         }
