@@ -3,7 +3,7 @@ package voxity.org.dialer.presentation.components
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -16,21 +16,24 @@ fun CallButton(
     backgroundColor: Color = MaterialTheme.colorScheme.surfaceVariant,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    contentDescription: String? = null
+    contentDescription: String? = null,
+    enabled: Boolean = true
 ) {
-    FloatingActionButton(
+    Surface(
         onClick = onClick,
-        containerColor = backgroundColor,
         shape = CircleShape,
+        color = backgroundColor,
+        shadowElevation = if (enabled) 4.dp else 0.dp,
         modifier = modifier.size(64.dp)
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDescription,
-            tint = if (backgroundColor == CallColors.callRed || backgroundColor == CallColors.callGreen)
-                Color.White
-            else
-                MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = when (backgroundColor) {
+                CallColors.callRed, CallColors.callGreen -> Color.White
+                MaterialTheme.colorScheme.primary -> MaterialTheme.colorScheme.onPrimary
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            },
             modifier = Modifier.size(24.dp)
         )
     }

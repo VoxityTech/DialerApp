@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import voxity.org.dialer.domain.models.CallState
 import voxity.org.dialer.presentation.components.CallButton
 import kotlinx.coroutines.delay
+import voxity.org.dialer.ui.theme.CallColors
 import kotlin.time.Duration.Companion.seconds
 
 @Composable
@@ -107,8 +108,7 @@ private fun AnimatedCallInfo(
                 modifier = Modifier
                     .size(120.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .animateContentSize(),
+                    .background(MaterialTheme.colorScheme.primary), // Uses black in light mode, white in dark mode
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -116,7 +116,7 @@ private fun AnimatedCallInfo(
                         ?: state.phoneNumber.firstOrNull()?.toString() ?: "?",
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary, // Uses white in light mode, black in dark mode
                     modifier = Modifier.graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
                 )
             }
@@ -172,6 +172,7 @@ private fun AnimatedCallControls(
             )
         }
 
+
         callState.isRinging && callState.isIncoming -> {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -180,7 +181,7 @@ private fun AnimatedCallControls(
             ) {
                 CallButton(
                     icon = Icons.Default.CallEnd,
-                    backgroundColor = Color.Red,
+                    backgroundColor = CallColors.callRed,
                     onClick = onRejectCall,
                     contentDescription = "Reject call",
                     modifier = Modifier.size(72.dp)
@@ -188,7 +189,7 @@ private fun AnimatedCallControls(
 
                 CallButton(
                     icon = Icons.Default.Call,
-                    backgroundColor = Color.Green,
+                    backgroundColor = CallColors.callGreen,
                     onClick = onAnswerCall,
                     contentDescription = "Answer call",
                     modifier = Modifier.size(72.dp)
@@ -225,14 +226,14 @@ private fun ActiveCallControls(
         ) {
             CallButton(
                 icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                backgroundColor = if (callState.isMuted) Color.Red else Color.Gray,
+                backgroundColor = if (callState.isMuted) CallColors.callRed else MaterialTheme.colorScheme.surfaceVariant,
                 onClick = { onMuteCall(!callState.isMuted) },
                 contentDescription = if (callState.isMuted) "Unmute" else "Mute"
             )
 
             CallButton(
                 icon = if (callState.isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
-                backgroundColor = Color.Gray,
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                 onClick = {
                     if (callState.isOnHold) {
                         onUnholdCall()
@@ -245,7 +246,7 @@ private fun ActiveCallControls(
 
             CallButton(
                 icon = Icons.Default.VolumeUp,
-                backgroundColor = Color.Gray,
+                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                 onClick = { /* Audio options */ },
                 contentDescription = "Audio options"
             )
@@ -255,13 +256,14 @@ private fun ActiveCallControls(
 
         CallButton(
             icon = Icons.Default.CallEnd,
-            backgroundColor = Color.Red,
+            backgroundColor = CallColors.callRed,
             onClick = onEndCall,
             contentDescription = "End call",
             modifier = Modifier.size(80.dp)
         )
     }
 }
+
 
 private fun getCallStatusText(callState: CallState, callDuration: Long): String {
     return when {

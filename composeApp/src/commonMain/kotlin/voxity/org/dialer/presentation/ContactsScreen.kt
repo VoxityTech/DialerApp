@@ -1,8 +1,6 @@
-// composeApp/src/commonMain/kotlin/voxity/org/dialer/presentation/ContactsScreen.kt
 package voxity.org.dialer.presentation
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,11 +10,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,12 +40,12 @@ fun ContactsScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        // Search field
+    Column(modifier = modifier.fillMaxSize()) {
+        // Clean search bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            label = { Text("Search contacts") },
+            placeholder = { Text("Search contacts") },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = "Search")
             },
@@ -62,7 +56,9 @@ fun ContactsScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
         )
 
         if (filteredContacts.isEmpty()) {
@@ -70,10 +66,17 @@ fun ContactsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                Text("No contacts found")
+                Text(
+                    "No contacts found",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         } else {
-            LazyColumn {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 items(filteredContacts, key = { it.name }) { contact ->
                     ContactItem(
                         contact = contact,
@@ -89,19 +92,17 @@ fun ContactsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ContactItem(
     contact: Contact,
     onCallClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onCallClick() },
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    Surface(
+        onClick = onCallClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -119,8 +120,8 @@ private fun ContactItem(
                 Text(
                     text = contact.name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
                     color = MaterialTheme.colorScheme.onPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 20.sp
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 18.sp
                 )
             }
 
@@ -132,23 +133,28 @@ private fun ContactItem(
                 Text(
                     text = contact.name,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 contact.phoneNumbers.firstOrNull()?.let { number ->
                     Text(
                         text = number,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
 
-            IconButton(onClick = onCallClick) {
+            Surface(
+                onClick = onCallClick,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                modifier = Modifier.size(40.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.Default.Call,
-                    contentDescription = "Call ${contact.name}",
-                    tint = MaterialTheme.colorScheme.primary
+                    Icons.Default.Call,
+                    contentDescription = "Call",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

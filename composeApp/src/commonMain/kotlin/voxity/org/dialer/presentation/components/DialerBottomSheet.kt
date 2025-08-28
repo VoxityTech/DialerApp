@@ -3,21 +3,26 @@ package voxity.org.dialer.presentation.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun DialerBottomSheet(
     isVisible: Boolean,
@@ -26,155 +31,128 @@ fun DialerBottomSheet(
     modifier: Modifier = Modifier
 ) {
     var phoneNumber by remember { mutableStateOf("") }
+    var offsetY by remember { mutableFloatStateOf(0f) }
 
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = slideInVertically(
-            initialOffsetY = { it },
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioMediumBouncy,
-                stiffness = Spring.StiffnessLow
-            )
-        ) + fadeIn(
-            animationSpec = tween(
-                durationMillis = 400,
-                easing = FastOutSlowInEasing
-            )
-        ),
-        exit = slideOutVertically(
-            targetOffsetY = { it },
-            animationSpec = spring(
-                dampingRatio = Spring.DampingRatioNoBouncy,
-                stiffness = Spring.StiffnessMedium
-            )
-        ) + fadeOut(
-            animationSpec = tween(
-                durationMillis = 300,
-                easing = LinearOutSlowInEasing
-            )
-        )
-    ) {
+    val animatedOffsetY by animateFloatAsState(
+        targetValue = if (isVisible) offsetY else 1000f,
+        animationSpec = spring(dampingRatio = 0.8f)
+    )
+
+    if (isVisible) {
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.6f))
         ) {
-            Card(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .animateContentSize(
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        )
-                    ),
+                    .offset { IntOffset(0, animatedOffsetY.roundToInt()) }
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures(
+                            onDragEnd = {
+                                if (offsetY > 200) {
+                                    onDismiss()
+                                }
+                                offsetY = 0f
+                            }
+                        ) { _, dragAmount ->
+                            val newOffset = offsetY + dragAmount
+                            offsetY = if (newOffset > 0) newOffset else 0f
+                        }
+                    },
                 shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                shadowElevation = 24.dp,
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Handle bar for visual indication
+                    // Drag handle
                     Box(
                         modifier = Modifier
                             .width(40.dp)
                             .height(4.dp)
-                            .background(
-                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                RoundedCornerShape(2.dp)
-                            )
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
                     )
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Dialer",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                    // Title
+                    Text(
+                        text = "Dialer",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, contentDescription = "Close")
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(24.dp))
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Phone number display with animation
-                    Card(
+                    // Enhanced phone number display
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .animateContentSize(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                            .height(64.dp),
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shadowElevation = 2.dp
                     ) {
                         Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AnimatedContent(
-                                targetState = phoneNumber,
-                                transitionSpec = {
-                                    slideInHorizontally { width -> width } + fadeIn() with
-                                            slideOutHorizontally { width -> -width } + fadeOut()
-                                }
-                            ) { number ->
-                                Text(
-                                    text = number.ifEmpty { "Enter phone number" },
-                                    fontSize = 18.sp,
-                                    modifier = Modifier.weight(1f),
-                                    color = if (number.isEmpty())
-                                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    else
-                                        MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                            Text(
+                                text = if (phoneNumber.isEmpty()) "Enter phone number" else phoneNumber,
+                                fontSize = if (phoneNumber.isEmpty()) 16.sp else 20.sp,
+                                fontWeight = if (phoneNumber.isEmpty()) FontWeight.Normal else FontWeight.Medium,
+                                fontFamily = if (phoneNumber.isEmpty()) FontFamily.Default else FontFamily.Monospace,
+                                color = if (phoneNumber.isEmpty())
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                else
+                                    MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
 
-                            AnimatedVisibility(
-                                visible = phoneNumber.isNotEmpty(),
-                                enter = scaleIn() + fadeIn(),
-                                exit = scaleOut() + fadeOut()
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        if (phoneNumber.isNotEmpty()) {
-                                            phoneNumber = phoneNumber.dropLast(1)
-                                        }
-                                    }
+                            if (phoneNumber.isNotEmpty()) {
+                                Surface(
+                                    onClick = { phoneNumber = phoneNumber.dropLast(1) },
+                                    shape = androidx.compose.foundation.shape.CircleShape,
+                                    color = Color.Transparent
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Backspace,
-                                        contentDescription = "Delete"
+                                        Icons.Default.Backspace,
+                                        contentDescription = "Delete",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(8.dp)
                                     )
                                 }
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                    // Dial pad with stagger animation
-                    DialPad(
-                        onNumberClick = { number ->
-                            phoneNumber += number
-                        },
-                        onCallClick = {
-                            if (phoneNumber.isNotEmpty()) {
-                                onCall(phoneNumber)
+                    // Dial pad with extra bottom padding
+                    Column {
+                        DialPad(
+                            onNumberClick = { number ->
+                                phoneNumber += number
+                            },
+                            onCallClick = {
+                                if (phoneNumber.isNotEmpty()) {
+                                    onCall(phoneNumber)
+                                }
                             }
-                        }
-                    )
+                        )
+
+                        // Extra space to push call button above navigation bar
+                        Spacer(modifier = Modifier.height(100.dp))
+                    }
                 }
             }
         }
