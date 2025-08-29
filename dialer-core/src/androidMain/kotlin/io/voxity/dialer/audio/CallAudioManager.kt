@@ -58,19 +58,18 @@ class CallAudioManager(private val context: Context) : AudioController {
 
     override suspend fun setMute(muted: Boolean): CallResult = withContext(Dispatchers.Main) {
         try {
+            // Only set microphone mute, don't touch stream volume for mute operations
             audioManager.isMicrophoneMute = muted
-
-            if (muted) {
-                audioManager.adjustStreamVolume(AudioManager.STREAM_VOICE_CALL, AudioManager.ADJUST_MUTE, 0)
-            } else {
-                audioManager.adjustStreamVolume(AudioManager.STREAM_VOICE_CALL, AudioManager.ADJUST_UNMUTE, 0)
-            }
-
             _isMuted.value = muted
             CallResult.Success
         } catch (e: Exception) {
             CallResult.Error("Failed to set mute state", e)
         }
+    }
+
+    // Add this function to sync initial state
+    fun syncMuteState() {
+        _isMuted.value = audioManager.isMicrophoneMute
     }
 
     override suspend fun toggleMute(): CallResult {

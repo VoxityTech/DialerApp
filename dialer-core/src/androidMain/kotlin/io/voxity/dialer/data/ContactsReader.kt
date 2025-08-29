@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
 import io.voxity.dialer.domain.models.Contact
 
-class ContactsReader(private val context: Context) {
+class ContactsReader(val context: Context) {
 
     fun getContacts(): List<Contact> {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)

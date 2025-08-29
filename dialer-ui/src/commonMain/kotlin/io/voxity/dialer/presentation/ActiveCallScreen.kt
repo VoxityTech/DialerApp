@@ -18,16 +18,36 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.voxity.dialer.components.CircularCallButton
+import io.voxity.dialer.components.PlatformAudioRouteSelector
+import io.voxity.dialer.components.SwipeableIncomingCall
+import io.voxity.dialer.components.SaveContactDialog
 import io.voxity.dialer.ui.state.ActiveCallScreenState
 import io.voxity.dialer.ui.callbacks.ActiveCallScreenCallbacks
 import io.voxity.dialer.ui.theme.CallColors
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun ActiveCallScreen(
     state: ActiveCallScreenState,
     callbacks: ActiveCallScreenCallbacks,
+    onSaveContact: ((String, String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var callDuration by remember { mutableStateOf(0L) }
+    var showSaveContactDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.callState.isActive) {
+        if (state.callState.isActive) {
+            while (state.callState.isActive) {
+                delay(1.seconds)
+                callDuration++
+            }
+        } else {
+            callDuration = 0
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -42,7 +62,15 @@ fun ActiveCallScreen(
         ) {
             AnimatedCallInfo(
                 callState = state.callState,
-                callDuration = state.callDuration
+                callDuration = callDuration,
+                onSaveContact = onSaveContact?.let { saveCallback ->
+                    {
+                        if (state.callState.contactName.isEmpty() ||
+                            state.callState.contactName == state.callState.phoneNumber) {
+                            showSaveContactDialog = true
+                        }
+                    }
+                }
             )
 
             AnimatedCallControls(
@@ -51,13 +79,27 @@ fun ActiveCallScreen(
             )
         }
     }
+
+    // Save contact dialog
+    SaveContactDialog(
+        phoneNumber = state.callState.phoneNumber,
+        isVisible = showSaveContactDialog,
+        onSave = { contactName ->
+            onSaveContact?.invoke(contactName, state.callState.phoneNumber)
+        },
+        onDismiss = {
+            showSaveContactDialog = false
+            // Reset any internal dialog state if needed
+        }
+    )
 }
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun AnimatedCallInfo(
     callState: io.voxity.dialer.domain.models.CallState,
-    callDuration: Long
+    callDuration: Long,
+    onSaveContact: (() -> Unit)? = null
 ) {
     AnimatedContent(
         targetState = callState,
@@ -98,12 +140,35 @@ private fun AnimatedCallInfo(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = state.contactName.ifEmpty { state.phoneNumber },
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = state.contactName.ifEmpty { state.phoneNumber },
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+
+                if (onSaveContact != null &&
+                    (state.contactName.isEmpty() || state.contactName == state.phoneNumber) &&
+                    state.phoneNumber.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        onClick = onSaveContact,
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.PersonAdd,
+                            contentDescription = "Save Contact",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
 
             if (state.contactName.isNotEmpty() && state.contactName != state.phoneNumber) {
                 Text(
@@ -134,7 +199,7 @@ private fun AnimatedCallControls(
         state.callState.isConnecting -> {
             CircularCallButton(
                 icon = Icons.Default.CallEnd,
-                backgroundColor = Color.Red,
+                backgroundColor = CallColors.callRed,
                 onClick = callbacks::onEndCall,
                 contentDescription = "End call",
                 modifier = Modifier.size(80.dp)
@@ -142,27 +207,10 @@ private fun AnimatedCallControls(
         }
 
         state.callState.isRinging && state.callState.isIncoming -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                CircularCallButton(
-                    icon = Icons.Default.CallEnd,
-                    backgroundColor = CallColors.callRed,
-                    onClick = callbacks::onRejectCall,
-                    contentDescription = "Reject call",
-                    modifier = Modifier.size(72.dp)
-                )
-
-                CircularCallButton(
-                    icon = Icons.Default.Call,
-                    backgroundColor = CallColors.callGreen,
-                    onClick = callbacks::onAnswerCall,
-                    contentDescription = "Answer call",
-                    modifier = Modifier.size(72.dp)
-                )
-            }
+            SwipeableIncomingCall(
+                onAnswer = callbacks::onAnswerCall,
+                onReject = callbacks::onRejectCall
+            )
         }
 
         state.callState.isActive || state.callState.isOnHold -> {
@@ -179,6 +227,8 @@ private fun ActiveCallControls(
     state: ActiveCallScreenState,
     callbacks: ActiveCallScreenCallbacks
 ) {
+    var showAudioSelector by remember { mutableStateOf(false) }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -207,7 +257,7 @@ private fun ActiveCallControls(
             CircularCallButton(
                 icon = Icons.Default.VolumeUp,
                 backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                onClick = callbacks::onShowAudioSelector,
+                onClick = { showAudioSelector = true },
                 contentDescription = "Audio options"
             )
         }
@@ -222,12 +272,20 @@ private fun ActiveCallControls(
             modifier = Modifier.size(80.dp)
         )
     }
+
+    // Add audio selector dialog
+    if (showAudioSelector) {
+        PlatformAudioRouteSelector(
+            onDismiss = { showAudioSelector = false },
+            onRouteSelected = { showAudioSelector = false }
+        )
+    }
 }
 
 private fun getCallStatusText(callState: io.voxity.dialer.domain.models.CallState, callDuration: Long): String {
     return when {
         callState.isConnecting -> "Connecting..."
-        callState.isRinging && callState.isIncoming -> "Incoming call"
+        callState.isRinging && callState.isIncoming -> "Swipe to answer or reject"
         callState.isRinging && !callState.isIncoming -> "Calling..."
         callState.isActive -> formatDuration(callDuration)
         callState.isOnHold -> "On hold"

@@ -16,11 +16,22 @@ import io.voxity.dialer.domain.repository.CallHistoryRepository
 import io.voxity.dialer.domain.repository.CallRepository
 import io.voxity.dialer.domain.repository.ContactRepository
 import io.voxity.dialer.domain.interfaces.AudioController
+import io.voxity.dialer.domain.models.DialerConfig
+import io.voxity.dialer.domain.usecases.CallUseCases
 import io.voxity.dialer.platform.PhoneCaller
 import io.voxity.dialer.sensors.ProximitySensorManager
 import kotlinx.coroutines.launch
 
 val androidModule = module {
+
+    single {
+        DialerConfig(
+            notificationChannelId = "dialer_calls",
+            notificationChannelName = "Dialer Calls",
+            enableVibration = true,
+            enableRingtone = true
+        )
+    }
     // Core dependencies
     single { ContactsReader(androidContext()) }
     single { CallLogReader(androidContext()) }
@@ -50,13 +61,22 @@ val androidModule = module {
         )
     }
 
+    // Also provide CallManager directly
+    single { get<CallRepository>() as CallManager }
+
+    single {
+        CallUseCases(
+            callRepository = get(),
+            contactRepository = get(),
+            callHistoryRepository = get()
+        )
+    }
+
     // Platform caller
     single { PhoneCaller(androidContext()) }
 
-    // Sensors
     single { ProximitySensorManager(androidContext()) }
 
-    // Volume handler with proper DI - fix method names
     single {
         VolumeKeyHandler(
             onVolumeUp = {

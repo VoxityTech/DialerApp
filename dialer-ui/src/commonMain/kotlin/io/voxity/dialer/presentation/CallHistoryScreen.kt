@@ -71,7 +71,8 @@ fun CallHistoryScreen(
                     items(state.callHistory) { item ->
                         CallHistoryItem(
                             item = item,
-                            onCallClick = { callbacks.onCallHistoryItemClicked(item.phoneNumber) }
+                            onCallClick = { callbacks.onCallHistoryItemClicked(item.phoneNumber) },
+                            onSaveContact = { callbacks.onSaveContact("", item.phoneNumber) }
                         )
                     }
                 }
@@ -84,6 +85,7 @@ fun CallHistoryScreen(
 internal fun CallHistoryItem(
     item: CallHistoryItem,
     onCallClick: () -> Unit,
+    onSaveContact: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -157,18 +159,36 @@ internal fun CallHistoryItem(
                 }
             }
 
-            Surface(
-                onClick = onCallClick,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                modifier = Modifier.size(44.dp)
-            ) {
-                Icon(
-                    Icons.Default.Call,
-                    contentDescription = "Call back",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
+            Row {
+                // Save contact button
+                if (item.contactName.isEmpty() || item.contactName == item.phoneNumber) {
+                    IconButton(
+                        onClick = onSaveContact,
+                        modifier = Modifier.size(44.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.PersonAdd,
+                            contentDescription = "Save Contact",
+                            tint = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                // Call button
+                Surface(
+                    onClick = onCallClick,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Call,
+                        contentDescription = "Call back",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
     }

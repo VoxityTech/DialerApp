@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import android.telecom.Call
 import android.telecom.Connection
+import android.util.Log
 import io.voxity.dialer.audio.CallAudioManager
 import io.voxity.dialer.audio.CallRingtoneManager
 import io.voxity.dialer.blocking.ContactBlockManager
@@ -18,9 +19,13 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import io.voxity.dialer.domain.models.CallState
 import io.voxity.dialer.domain.repository.CallRepository
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -34,6 +39,12 @@ class CallManager(
 ) : CallRepository {
 
     private val TAG = "CallManager"
+
+    private val managerScope = CoroutineScope(
+        Dispatchers.Main + SupervisorJob() + CoroutineExceptionHandler { _, exception ->
+            Log.e(TAG, "Coroutine exception", exception)
+        }
+    )
 
     private val _activeCalls = MutableStateFlow<List<Call>>(emptyList())
     val activeCalls: StateFlow<List<Call>> = _activeCalls.asStateFlow()
@@ -239,6 +250,15 @@ class CallManager(
         ringtoneManager.silenceRinging()
     }
 
+    fun cleanup() {
+        managerScope.cancel()
+        ringtoneManager.stopRinging()
+        notificationManager.cancelCallNotification()
+        managerScope.launch {
+            audioManager.abandonAudioFocus()
+        }
+    }
+
     @OptIn(ExperimentalTime::class)
     private fun updateCurrentCallState() {
         val activeCall = _activeCalls.value.firstOrNull()
@@ -248,6 +268,7 @@ class CallManager(
             val phoneNumber = details.handle?.schemeSpecificPart ?: _currentCallState.value.phoneNumber
             val contactName = details.contactDisplayName ?: ""
 
+            // Around line 165, fix the mute state handling
             val callState = CallState(
                 isActive = activeCall.state == Call.STATE_ACTIVE,
                 phoneNumber = phoneNumber,
@@ -256,7 +277,7 @@ class CallManager(
                 isRinging = activeCall.state == Call.STATE_RINGING,
                 isOnHold = activeCall.state == Call.STATE_HOLDING,
                 isConnecting = activeCall.state == Call.STATE_CONNECTING || activeCall.state == Call.STATE_DIALING,
-                isMuted = _currentCallState.value.isMuted,
+                isMuted = audioManager.getCurrentMuteState(), // Get actual state from hardware
                 callStartTime = if (activeCall.state == Call.STATE_ACTIVE && _currentCallState.value.callStartTime == null) {
                     Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 } else _currentCallState.value.callStartTime

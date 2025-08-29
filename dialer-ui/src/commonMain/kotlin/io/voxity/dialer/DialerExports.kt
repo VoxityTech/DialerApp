@@ -28,9 +28,10 @@ object DialerScreens {
     fun ActiveCall(
         state: io.voxity.dialer.ui.state.ActiveCallScreenState,
         callbacks: io.voxity.dialer.ui.callbacks.ActiveCallScreenCallbacks,
+        onSaveContact: (String, String) -> Unit,
         modifier: Modifier = Modifier
     ) {
-        io.voxity.dialer.presentation.ActiveCallScreen(state, callbacks, modifier)
+        io.voxity.dialer.presentation.ActiveCallScreen(state, callbacks, onSaveContact,modifier)
     }
 
     @Composable
@@ -47,9 +48,10 @@ object DialerScreens {
         isVisible: Boolean,
         onDismiss: () -> Unit,
         onCall: (String) -> Unit,
+        initialPhoneNumber: String,
         modifier: Modifier = Modifier
     ) {
-        io.voxity.dialer.presentation.components.DialerModalSheet(isVisible, onDismiss, onCall, modifier)
+        io.voxity.dialer.presentation.components.DialerModalSheet(isVisible, onDismiss, onCall, initialPhoneNumber,modifier)
     }
 }
 
@@ -85,6 +87,7 @@ object DialerCallbacks {
         onContactSelected: (io.voxity.dialer.domain.models.Contact) -> Unit = {},
         onCallContact: (String) -> Unit = {},
         onSearchQueryChanged: (String) -> Unit = {},
+        onSaveContact: (String,String) -> Unit = { _, _ -> },
         onBlockNumber: (String) -> Unit = {},
         onUnblockNumber: (String) -> Unit = {}
     ) = object : io.voxity.dialer.ui.callbacks.ContactsScreenCallbacks {
@@ -93,14 +96,17 @@ object DialerCallbacks {
         override fun onSearchQueryChanged(query: String) = onSearchQueryChanged(query)
         override fun onBlockNumber(phoneNumber: String) = onBlockNumber(phoneNumber)
         override fun onUnblockNumber(phoneNumber: String) = onUnblockNumber(phoneNumber)
+        override fun onSaveContact(contactName: String, phoneNumber: String) = onSaveContact(contactName,phoneNumber)
     }
 
     fun callHistory(
         onCallHistoryItemClicked: (String) -> Unit = {},
-        onRefresh: () -> Unit = {}
+        onRefresh: () -> Unit = {},
+        onSaveContact: (String, String) -> Unit = { _, _ -> }
     ) = object : io.voxity.dialer.ui.callbacks.CallHistoryScreenCallbacks {
         override fun onCallHistoryItemClicked(phoneNumber: String) = onCallHistoryItemClicked(phoneNumber)
         override fun onRefresh() = onRefresh()
+        override fun onSaveContact(contactName: String, phoneNumber: String) = onSaveContact(contactName, phoneNumber)
     }
 
     fun activeCall(

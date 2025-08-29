@@ -15,7 +15,6 @@ import io.voxity.dialer.ui.callbacks.*
 import io.voxity.dialer.ui.navigation.NavigationItem
 import io.voxity.dialer.ui.navigation.NavigationScreenRenderer
 
-// Pure UI composable - no DI, no ViewModels
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DialerUI(
@@ -24,6 +23,7 @@ fun DialerUI(
     contactsState: ContactsScreenState = ContactsScreenState(),
     callHistoryState: CallHistoryScreenState = CallHistoryScreenState(),
     activeCallState: ActiveCallScreenState = ActiveCallScreenState(),
+    dialerState: DialerScreenState = DialerScreenState(), // <-- ADDED THIS PARAMETER
 
     // Callback parameters
     navigationCallbacks: DialerNavigationCallbacks,
@@ -31,9 +31,11 @@ fun DialerUI(
         override fun onContactSelected(contact: io.voxity.dialer.domain.models.Contact) {}
         override fun onCallContact(phoneNumber: String) {}
         override fun onSearchQueryChanged(query: String) {}
+        override fun onSaveContact(contactName: String, phoneNumber: String) {}
     },
     callHistoryCallbacks: CallHistoryScreenCallbacks = object : CallHistoryScreenCallbacks {
         override fun onCallHistoryItemClicked(phoneNumber: String) {}
+        override fun onSaveContact(contactName: String, phoneNumber: String) {}
     },
     activeCallCallbacks: ActiveCallScreenCallbacks = object : ActiveCallScreenCallbacks {
         override fun onAnswerCall() {}
@@ -70,10 +72,19 @@ fun DialerUI(
 
     val allNavigationItems = defaultNavigationItems + additionalNavigationItems
 
+    // Add this LaunchedEffect in DialerUI
+    LaunchedEffect(navigationState.selectedTab) {
+        if (navigationState.showDialerModal) {
+            // Auto-hide modal when switching tabs
+            navigationCallbacks.onHideDialerModal()
+        }
+    }
+
     if (showInCallScreen) {
         ActiveCallScreen(
             state = activeCallState,
             callbacks = activeCallCallbacks,
+            onSaveContact = contactsCallbacks::onSaveContact,
             modifier = modifier
         )
     } else {
@@ -151,6 +162,7 @@ fun DialerUI(
                 DialerModalSheet(
                     isVisible = navigationState.showDialerModal,
                     onDismiss = navigationCallbacks::onHideDialerModal,
+                    initialPhoneNumber = dialerState.phoneNumber,
                     onCall = { number ->
                         dialerCallbacks.onMakeCall(number)
                         navigationCallbacks.onHideDialerModal()

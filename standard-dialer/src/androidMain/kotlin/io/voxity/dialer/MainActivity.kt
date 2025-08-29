@@ -20,11 +20,15 @@ import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import io.voxity.dialer.audio.CallAudioManager
 import io.voxity.dialer.audio.VolumeKeyHandler
-import io.voxity.dialer.domain.models.Contact
+import io.voxity.dialer.domain.models.CallResult
+import io.voxity.dialer.domain.models.CallState
+// import io.voxity.dialer.domain.models.Contact // Not directly used in this file after recent changes
 import io.voxity.dialer.domain.usecases.CallUseCases
-import io.voxity.dialer.managers.CallManager
+import io.voxity.dialer.managers.CallManager // Assuming this is the concrete class for CallRepository
 import io.voxity.dialer.sensors.ProximitySensorManager
 import io.voxity.dialer.ui.callbacks.DialerNavigationCallbacks
+// Import specific screen state if DialerState.keypad() returns it, or the general one
+import io.voxity.dialer.ui.state.DialerScreenState
 import io.voxity.dialer.ui.state.DialerNavigationState
 import io.voxity.dialer.ui.theme.DialerTheme
 import kotlinx.coroutines.*
@@ -72,6 +76,10 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        if (savedInstanceState != null) {
+            restoreState(savedInstanceState)
+        }
+
         setupCallHandling()
         initializeDependencies()
 
@@ -83,12 +91,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             DialerTheme {
-                // Use the legacy DialerUI for now, or create a new navigation structure
                 DialerUI(
                     navigationState = navigationState,
                     contactsState = contactsState,
                     callHistoryState = callHistoryState,
                     activeCallState = activeCallState,
+                    dialerState = this.dialerState,
                     navigationCallbacks = createNavigationCallbacks(),
                     contactsCallbacks = createContactsCallbacks(),
                     callHistoryCallbacks = createCallHistoryCallbacks(),
@@ -109,6 +117,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("dialer_number", dialerState.phoneNumber)
+        outState.putBoolean("in_call", activeCallState.callState.isActive)
+    }
+
+    private fun restoreState(savedInstanceState: Bundle) {
+        val savedNumber = savedInstanceState.getString("dialer_number", "")
+        val wasInCall = savedInstanceState.getBoolean("in_call", false)
+
+        if (savedNumber.isNotEmpty()) {
+            dialerState = dialerState.copy(phoneNumber = savedNumber)
+        }
+
+        if (wasInCall) {
+            scope.launch {
+                delay(500)
+                val currentState = callManager.currentCallState.value
+                if (currentState.isActive) {
+                    activeCallState = DialerState.activeCall(callState = currentState)
+                }
+            }
+        }
+    }
+
     private fun setupCallHandling() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
@@ -125,7 +158,7 @@ class MainActivity : ComponentActivity() {
     private fun initializeDependencies() {
         proximitySensorManager = get()
         callAudioManager = get()
-        callManager = get<io.voxity.dialer.domain.repository.CallRepository>() as CallManager
+        callManager = get()
 
         volumeKeyHandler = VolumeKeyHandler(
             onVolumeUp = {
@@ -139,7 +172,6 @@ class MainActivity : ComponentActivity() {
             }
         )
 
-        // Observe call state
         scope.launch {
             callManager.currentCallState.collect { callState ->
                 activeCallState = DialerState.activeCall(
@@ -147,6 +179,29 @@ class MainActivity : ComponentActivity() {
                     callDuration = activeCallState.callDuration,
                     showAudioSelector = activeCallState.showAudioSelector
                 )
+
+                // Refresh call history when call ends
+                if (!callState.isActive && !callState.isRinging && !callState.isConnecting &&
+                    previousCallState?.isActive == true) {
+                    loadCallHistory() // Reload just the call history
+                }
+                previousCallState = callState
+            }
+        }
+    }
+
+    private var previousCallState: CallState? = null
+
+    private fun loadCallHistory() {
+        scope.launch {
+            try {
+                val callHistoryList = get<CallUseCases>().getCallHistory()
+                callHistoryState = DialerState.callHistory(
+                    callHistory = callHistoryList,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error loading call history", e)
             }
         }
     }
@@ -159,24 +214,22 @@ class MainActivity : ComponentActivity() {
             try {
                 val callUseCases = get<CallUseCases>()
 
-                // Load contacts
-                val contacts = callUseCases.getContacts()
+                val contactsList = callUseCases.getContacts()
                 contactsState = DialerState.contacts(
-                    contacts = contacts,
-                    filteredContacts = contacts,
+                    contacts = contactsList,
+                    filteredContacts = contactsList,
                     isLoading = false
                 )
 
-                // Load call history
-                val callHistory = callUseCases.getCallHistory()
+                val callHistoryList = callUseCases.getCallHistory()
                 callHistoryState = DialerState.callHistory(
-                    callHistory = callHistory,
+                    callHistory = callHistoryList,
                     isLoading = false
                 )
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error loading data", e)
-                contactsState = DialerState.contacts(isLoading = false)
-                callHistoryState = DialerState.callHistory(isLoading = false)
+                contactsState = DialerState.contacts(isLoading = false) // Reset loading state
+                callHistoryState = DialerState.callHistory(isLoading = false) // Reset loading state
             }
         }
     }
@@ -191,8 +244,9 @@ class MainActivity : ComponentActivity() {
         }
 
         override fun onHideDialerModal() {
+            val currentNumber = dialerState.phoneNumber
             navigationState = navigationState.copy(showDialerModal = false)
-            dialerState = DialerState.keypad(canMakeCall = dialerState.canMakeCall)
+            dialerState = DialerState.keypad(phoneNumber = currentNumber, canMakeCall = dialerState.canMakeCall)
         }
 
         override fun onRequestDefaultDialer() {
@@ -220,13 +274,28 @@ class MainActivity : ComponentActivity() {
                             contact.phoneNumbers.any { it.contains(query) }
                 }
             }
-
-            contactsState = DialerState.contacts(
-                contacts = contactsState.contacts,
-                isLoading = contactsState.isLoading,
+            contactsState = contactsState.copy(
                 searchQuery = query,
                 filteredContacts = filtered
             )
+        },
+        onSaveContact = { contactName, phoneNumber ->
+            scope.launch {
+                try {
+                    val result = get<CallUseCases>().saveContact(contactName, phoneNumber)
+                    when (result) {
+                        is CallResult.Success -> {
+                            Toast.makeText(this@MainActivity, "Contact saved", Toast.LENGTH_SHORT).show()
+                            loadData() // Refresh contacts
+                        }
+                        is CallResult.Error -> {
+                            Toast.makeText(this@MainActivity, "Failed to save contact: ${result.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "Error saving contact: ${e.message}", Toast.LENGTH_SHORT).show() 
+                }
+            }
         }
     )
 
@@ -240,58 +309,23 @@ class MainActivity : ComponentActivity() {
     )
 
     private fun createActiveCallCallbacks() = DialerCallbacks.activeCall(
-        onAnswerCall = {
-            scope.launch {
-                get<CallUseCases>().answerCall()
-            }
-        },
-        onRejectCall = {
-            scope.launch {
-                get<CallUseCases>().rejectCall()
-            }
-        },
-        onEndCall = {
-            scope.launch {
-                get<CallUseCases>().endCall()
-            }
-        },
-        onHoldCall = {
-            scope.launch {
-                get<CallUseCases>().holdCall()
-            }
-        },
-        onUnholdCall = {
-            scope.launch {
-                get<CallUseCases>().unholdCall()
-            }
-        },
-        onMuteCall = { muted ->
-            scope.launch {
-                get<CallUseCases>().muteCall(muted)
-            }
-        },
+        onAnswerCall = { scope.launch { get<CallUseCases>().answerCall() } },
+        onRejectCall = { scope.launch { get<CallUseCases>().rejectCall() } },
+        onEndCall = { scope.launch { get<CallUseCases>().endCall() } },
+        onHoldCall = { scope.launch { get<CallUseCases>().holdCall() } },
+        onUnholdCall = { scope.launch { get<CallUseCases>().unholdCall() } },
+        onMuteCall = { muted -> scope.launch { get<CallUseCases>().muteCall(muted) } },
         onShowAudioSelector = {
-            activeCallState = DialerState.activeCall(
-                callState = activeCallState.callState,
-                callDuration = activeCallState.callDuration,
-                showAudioSelector = true
-            )
+            activeCallState = activeCallState.copy(showAudioSelector = true)
         },
         onHideAudioSelector = {
-            activeCallState = DialerState.activeCall(
-                callState = activeCallState.callState,
-                callDuration = activeCallState.callDuration,
-                showAudioSelector = false
-            )
+            activeCallState = activeCallState.copy(showAudioSelector = false)
         }
     )
 
     private fun createDialerCallbacks() = DialerCallbacks.keypad(
-        onNumberChanged = { number ->
-            dialerState = DialerState.keypad(
-                phoneNumber = dialerState.phoneNumber + number,
-                canMakeCall = dialerState.canMakeCall
-            )
+        onNumberChanged = { digit -> // Parameter name changed to digit for clarity
+            dialerState = dialerState.copy(phoneNumber = dialerState.phoneNumber + digit)
         },
         onMakeCall = { phoneNumber ->
             makeCall(phoneNumber)
@@ -299,30 +333,26 @@ class MainActivity : ComponentActivity() {
         onDeleteDigit = {
             val currentNumber = dialerState.phoneNumber
             if (currentNumber.isNotEmpty()) {
-                dialerState = DialerState.keypad(
-                    phoneNumber = currentNumber.dropLast(1),
-                    canMakeCall = dialerState.canMakeCall
-                )
+                dialerState = dialerState.copy(phoneNumber = currentNumber.dropLast(1))
             }
         },
         onClearNumber = {
-            dialerState = DialerState.keypad(canMakeCall = dialerState.canMakeCall)
+            dialerState = dialerState.copy(phoneNumber = "")
         }
     )
 
     private fun makeCall(phoneNumber: String) {
-        if (!dialerState.canMakeCall) {
+        if (!isDefaultDialerApp()) { // Check using isDefaultDialerApp() for consistency
             Toast.makeText(this, "Set as default dialer to make calls", Toast.LENGTH_SHORT).show()
             requestDefaultDialerRole()
             return
         }
-
         scope.launch {
             try {
                 get<CallUseCases>().makeCall(phoneNumber)
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error making call", e)
-                Toast.makeText(this@MainActivity, "Failed to make call", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Failed to make call: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -340,7 +370,6 @@ class MainActivity : ComponentActivity() {
                 return volumeKeyHandler.handleKeyEvent(keyCode, event, false, true)
             }
         }
-
         return super.onKeyDown(keyCode, event)
     }
 
@@ -388,7 +417,6 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDialIntent(intent: Intent?) {
         intent ?: return
-
         if (intent.hasExtra("FROM_DIALER_APP")) {
             return
         }
@@ -397,26 +425,30 @@ class MainActivity : ComponentActivity() {
             Intent.ACTION_DIAL -> {
                 val number = intent.data?.schemeSpecificPart
                 number?.let {
-                    dialerState = DialerState.keypad(phoneNumber = it, canMakeCall = dialerState.canMakeCall)
+                    dialerState = dialerState.copy(phoneNumber = it)
                     navigationState = navigationState.copy(showDialerModal = true)
                 }
             }
             Intent.ACTION_CALL -> {
                 val number = intent.data?.schemeSpecificPart
-                if (!number.isNullOrEmpty() && isDefaultDialerApp()) {
-                    makeCall(number)
-                } else if (!isDefaultDialerApp()) {
-                    Toast.makeText(this, "Set as default dialer to handle call intents.", Toast.LENGTH_LONG).show()
-                    requestDefaultDialerRole()
+                if (!number.isNullOrEmpty()) {
+                    if (isDefaultDialerApp()) {
+                        makeCall(number)
+                    } else {
+                        Toast.makeText(this, "Set as default dialer to handle call intents.", Toast.LENGTH_LONG).show()
+                        requestDefaultDialerRole()
+                    }
                 }
             }
             "android.intent.action.CALL_PRIVILEGED" -> {
                 val number = intent.data?.schemeSpecificPart
-                if (!number.isNullOrEmpty() && isDefaultDialerApp()) {
-                    makeCall(number)
-                } else if (!isDefaultDialerApp()) {
-                    Toast.makeText(this, "Set as default dialer to handle privileged call intents.", Toast.LENGTH_LONG).show()
-                    requestDefaultDialerRole()
+                if (!number.isNullOrEmpty()) {
+                    if (isDefaultDialerApp()) {
+                        makeCall(number)
+                    } else {
+                        Toast.makeText(this, "Set as default dialer to handle privileged call intents.", Toast.LENGTH_LONG).show()
+                        requestDefaultDialerRole()
+                    }
                 }
             }
         }
@@ -431,9 +463,7 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_CONTACTS,
             Manifest.permission.ANSWER_PHONE_CALLS
         )
-        return permissions.all { permission ->
-            ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
-        }
+        return permissions.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
     }
 
     private fun requestAllPermissions() {
@@ -443,6 +473,7 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.MANAGE_OWN_CALLS,
             Manifest.permission.READ_CALL_LOG,
             Manifest.permission.READ_CONTACTS,
+            Manifest.permission.WRITE_CONTACTS,
             Manifest.permission.ANSWER_PHONE_CALLS
         )
         permissionLauncher.launch(permissions)
@@ -450,11 +481,12 @@ class MainActivity : ComponentActivity() {
 
     private fun isDefaultDialerApp(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(ROLE_SERVICE) as RoleManager
-            roleManager.isRoleHeld(RoleManager.ROLE_DIALER)
+            val roleManager = getSystemService(ROLE_SERVICE) as? RoleManager
+            roleManager?.isRoleHeld(RoleManager.ROLE_DIALER) == true
         } else {
-            val telecomManager = getSystemService(TELECOM_SERVICE) as TelecomManager
-            packageName == telecomManager.defaultDialerPackage
+            @Suppress("DEPRECATION")
+            val telecomManager = getSystemService(TELECOM_SERVICE) as? TelecomManager
+            packageName == telecomManager?.defaultDialerPackage
         }
     }
 
@@ -472,10 +504,15 @@ class MainActivity : ComponentActivity() {
                     defaultDialerLauncher.launch(intent)
                 } else if (!roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
                     Toast.makeText(this, "Dialer role not available on this device.", Toast.LENGTH_SHORT).show()
+                } else if (roleManager.isRoleHeld(RoleManager.ROLE_DIALER)){
+                    // Already default, update UI state if needed
+                     navigationState = navigationState.copy(isDefaultDialer = true)
+                     this.dialerState = this.dialerState.copy(canMakeCall = true)
                 } else {
-                    Toast.makeText(this, "App is already default or role cannot be requested.", Toast.LENGTH_SHORT).show()
+                     Toast.makeText(this, "App is already default or role cannot be requested.", Toast.LENGTH_SHORT).show()
                 }
             } else {
+                @Suppress("DEPRECATION")
                 val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
                     putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
                 }
@@ -486,7 +523,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e("MainActivity", "Error requesting default dialer role", e)
             Toast.makeText(this, "Error requesting default dialer role: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }

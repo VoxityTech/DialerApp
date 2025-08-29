@@ -83,6 +83,7 @@ fun CallAudioRouteSelector(
                             onClick = {
                                 audioRouteManager.setAudioRoute(route)
                                 onRouteSelected(route)
+                                onDismiss()
                             }
                         )
                     }

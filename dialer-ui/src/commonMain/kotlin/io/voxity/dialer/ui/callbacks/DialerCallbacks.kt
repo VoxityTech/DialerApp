@@ -9,11 +9,13 @@ interface ContactsScreenCallbacks {
     fun onSearchQueryChanged(query: String)
     fun onBlockNumber(phoneNumber: String) {}
     fun onUnblockNumber(phoneNumber: String) {}
+    fun onSaveContact(contactName: String, phoneNumber: String)
 }
 
 interface CallHistoryScreenCallbacks {
     fun onCallHistoryItemClicked(phoneNumber: String)
     fun onRefresh() {}
+    fun onSaveContact(contactName: String, phoneNumber: String)
 }
 
 interface DialerScreenCallbacks {

@@ -27,4 +27,7 @@ class CallUseCases(
 
     suspend fun getContacts() = contactRepository.getContacts()
     suspend fun getCallHistory() = callHistoryRepository.getCallHistory()
+
+    suspend fun saveContact(name: String, phoneNumber: String): CallResult =
+        contactRepository.saveContact(name, phoneNumber)
 }

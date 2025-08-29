@@ -75,29 +75,37 @@ class AudioRouteManager(private val context: Context) {
     }
 
     fun setAudioRoute(route: AudioRoute) {
-        when (route) {
-            AudioRoute.SPEAKER -> {
-                audioManager.isSpeakerphoneOn = true
-                audioManager.isBluetoothScoOn = false
-                audioManager.stopBluetoothSco()
+        try {
+            when (route) {
+                AudioRoute.SPEAKER -> {
+                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                    audioManager.isSpeakerphoneOn = true
+                    audioManager.isBluetoothScoOn = false
+                    audioManager.stopBluetoothSco()
+                }
+                AudioRoute.EARPIECE -> {
+                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                    audioManager.isSpeakerphoneOn = false
+                    audioManager.isBluetoothScoOn = false
+                    audioManager.stopBluetoothSco()
+                }
+                AudioRoute.BLUETOOTH -> {
+                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                    audioManager.isSpeakerphoneOn = false
+                    audioManager.isBluetoothScoOn = true
+                    audioManager.startBluetoothSco()
+                }
+                AudioRoute.WIRED_HEADSET -> {
+                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                    audioManager.isSpeakerphoneOn = false
+                    audioManager.isBluetoothScoOn = false
+                    audioManager.stopBluetoothSco()
+                }
             }
-            AudioRoute.EARPIECE -> {
-                audioManager.isSpeakerphoneOn = false
-                audioManager.isBluetoothScoOn = false
-                audioManager.stopBluetoothSco()
-            }
-            AudioRoute.BLUETOOTH -> {
-                audioManager.isSpeakerphoneOn = false
-                audioManager.isBluetoothScoOn = true
-                audioManager.startBluetoothSco()
-            }
-            AudioRoute.WIRED_HEADSET -> {
-                audioManager.isSpeakerphoneOn = false
-                audioManager.isBluetoothScoOn = false
-                audioManager.stopBluetoothSco()
-            }
+            _currentRoute.value = route
+        } catch (e: Exception) {
+            android.util.Log.e("AudioRouteManager", "Failed to set audio route", e)
         }
-        _currentRoute.value = route
     }
 
     private fun updateAvailableRoutes() {
@@ -125,7 +133,6 @@ class AudioRouteManager(private val context: Context) {
                 return false
             }
 
-            // For Android 12+ we need to check permissions differently
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 bluetoothHeadset?.connectedDevices?.isNotEmpty() == true
             } else {

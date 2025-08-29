@@ -28,15 +28,38 @@ fun DialerModalSheet(
     isVisible: Boolean,
     onDismiss: () -> Unit,
     onCall: (String) -> Unit,
+    initialPhoneNumber: String = "",
     modifier: Modifier = Modifier
 ) {
-    var phoneNumber by remember { mutableStateOf("") }
     var offsetY by remember { mutableFloatStateOf(0f) }
+
+    var phoneNumber by remember(isVisible) {
+        mutableStateOf(if (isVisible) initialPhoneNumber else "")
+    }
 
     val animatedOffsetY by animateFloatAsState(
         targetValue = if (isVisible) offsetY else 1000f,
-        animationSpec = spring(dampingRatio = 0.8f)
+        animationSpec = spring(dampingRatio = 0.8f),
+        finishedListener = {
+            if (!isVisible && it >= 1000f) {
+                // Animation completed, reset state
+                offsetY = 0f
+            }
+        }
     )
+
+    LaunchedEffect(isVisible) {
+        if (!isVisible) {
+            // Animate slide down
+            animate(
+                initialValue = offsetY,
+                targetValue = 1000f,
+                animationSpec = spring(dampingRatio = 0.8f)
+            ) { value, _ ->
+                offsetY = value
+            }
+        }
+    }
 
     if (isVisible) {
         Box(
