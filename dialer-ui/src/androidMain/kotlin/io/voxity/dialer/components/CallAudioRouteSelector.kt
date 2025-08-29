@@ -18,10 +18,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.voxity.dialer.audio.AudioRoute // Fixed import
-import io.voxity.dialer.audio.AudioRouteManager // Fixed import
+import io.voxity.dialer.audio.AudioRoute
+import io.voxity.dialer.audio.AudioRouteManager
 
-// Extension to add UI-specific properties
 val AudioRoute.icon: ImageVector
     get() = when (this) {
         AudioRoute.SPEAKER -> Icons.Default.VolumeUp

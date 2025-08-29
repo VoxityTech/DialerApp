@@ -3,7 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary) // Changed from androidApplication
+    alias(libs.plugins.androidLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     id("maven-publish")
@@ -65,7 +65,7 @@ kotlin {
 }
 
 android {
-    namespace = "io.voxity.dialer.ui" // Fixed namespace
+    namespace = "io.voxity.dialer.ui"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {

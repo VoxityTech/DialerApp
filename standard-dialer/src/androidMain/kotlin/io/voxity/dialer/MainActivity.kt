@@ -16,14 +16,19 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import io.voxity.dialer.audio.CallAudioManager
 import io.voxity.dialer.audio.VolumeKeyHandler
+import io.voxity.dialer.domain.models.Contact
+import io.voxity.dialer.domain.usecases.CallUseCases
 import io.voxity.dialer.managers.CallManager
 import io.voxity.dialer.sensors.ProximitySensorManager
-import io.voxity.dialer.ui.viewmodel.DialerViewModel
+import io.voxity.dialer.ui.callbacks.DialerNavigationCallbacks
+import io.voxity.dialer.ui.state.DialerNavigationState
+import io.voxity.dialer.ui.theme.DialerTheme
+import kotlinx.coroutines.*
 import org.koin.android.ext.android.get
-import org.koin.compose.koinInject
 
 class MainActivity : ComponentActivity() {
 
@@ -31,12 +36,22 @@ class MainActivity : ComponentActivity() {
     private lateinit var volumeKeyHandler: VolumeKeyHandler
     private lateinit var callAudioManager: CallAudioManager
     private lateinit var callManager: CallManager
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // UI State - using the new clean API
+    private var navigationState by mutableStateOf(DialerNavigationState())
+    private var contactsState by mutableStateOf(DialerState.contacts())
+    private var callHistoryState by mutableStateOf(DialerState.callHistory())
+    private var dialerState by mutableStateOf(DialerState.keypad())
+    private var activeCallState by mutableStateOf(DialerState.activeCall())
+
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         val allGranted = permissions.all { it.value }
         if (allGranted) {
             Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
+            loadData()
         } else {
             Toast.makeText(this, "Some permissions denied", Toast.LENGTH_SHORT).show()
         }
@@ -47,6 +62,8 @@ class MainActivity : ComponentActivity() {
     ) { result ->
         if (result.resultCode == RESULT_OK) {
             Toast.makeText(this, "App set as default dialer", Toast.LENGTH_SHORT).show()
+            navigationState = navigationState.copy(isDefaultDialer = true)
+            dialerState = DialerState.keypad(phoneNumber = dialerState.phoneNumber, canMakeCall = true)
         } else {
             Toast.makeText(this, "Not set as default dialer", Toast.LENGTH_SHORT).show()
         }
@@ -55,7 +72,44 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Enable showing over lock screen
+        setupCallHandling()
+        initializeDependencies()
+
+        val isDefaultDialer = isDefaultDialerApp()
+        navigationState = DialerNavigationState(isDefaultDialer = isDefaultDialer)
+        dialerState = DialerState.keypad(canMakeCall = isDefaultDialer)
+
+        handleDialIntent(intent)
+
+        setContent {
+            DialerTheme {
+                // Use the legacy DialerUI for now, or create a new navigation structure
+                DialerUI(
+                    navigationState = navigationState,
+                    contactsState = contactsState,
+                    callHistoryState = callHistoryState,
+                    activeCallState = activeCallState,
+                    navigationCallbacks = createNavigationCallbacks(),
+                    contactsCallbacks = createContactsCallbacks(),
+                    callHistoryCallbacks = createCallHistoryCallbacks(),
+                    activeCallCallbacks = createActiveCallCallbacks(),
+                    dialerCallbacks = createDialerCallbacks()
+                )
+            }
+        }
+
+        if (!hasAllPermissions()) {
+            requestAllPermissions()
+        } else {
+            loadData()
+        }
+
+        if (!isDefaultDialerApp()) {
+            showDefaultDialerPrompt()
+        }
+    }
+
+    private fun setupCallHandling() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -65,63 +119,224 @@ class MainActivity : ComponentActivity() {
                         WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
             )
         }
+        volumeControlStream = AudioManager.STREAM_RING
+    }
 
-        proximitySensorManager = ProximitySensorManager(this)
-        callAudioManager = CallAudioManager(this)
-        callManager = CallManager.Companion.getInstance(this)
+    private fun initializeDependencies() {
+        proximitySensorManager = get()
+        callAudioManager = get()
+        callManager = get<io.voxity.dialer.domain.repository.CallRepository>() as CallManager
 
         volumeKeyHandler = VolumeKeyHandler(
             onVolumeUp = {
-                callAudioManager.increaseCallVolume()
+                scope.launch { callAudioManager.increaseVolume() }
             },
             onVolumeDown = {
-                callAudioManager.decreaseCallVolume()
+                scope.launch { callAudioManager.decreaseVolume() }
             },
             onSilenceRingtone = {
                 callManager.ringtoneManager.silenceRinging()
             }
         )
 
-        volumeControlStream = AudioManager.STREAM_RING
+        // Observe call state
+        scope.launch {
+            callManager.currentCallState.collect { callState ->
+                activeCallState = DialerState.activeCall(
+                    callState = callState,
+                    callDuration = activeCallState.callDuration,
+                    showAudioSelector = activeCallState.showAudioSelector
+                )
+            }
+        }
+    }
 
-        handleDialIntent(intent)
+    private fun loadData() {
+        scope.launch {
+            contactsState = DialerState.contacts(isLoading = true)
+            callHistoryState = DialerState.callHistory(isLoading = true)
 
-        setContent {
-            val dialerViewModel = koinInject<DialerViewModel>()
+            try {
+                val callUseCases = get<CallUseCases>()
 
-            VoxityDialerApp(
-                viewModel = dialerViewModel,
-                onRequestDefaultDialer = { requestDefaultDialerRole() },
-                onRequestPermissions = { requestAllPermissions() },
-                isDefaultDialer = isDefaultDialerApp()
-            )
+                // Load contacts
+                val contacts = callUseCases.getContacts()
+                contactsState = DialerState.contacts(
+                    contacts = contacts,
+                    filteredContacts = contacts,
+                    isLoading = false
+                )
+
+                // Load call history
+                val callHistory = callUseCases.getCallHistory()
+                callHistoryState = DialerState.callHistory(
+                    callHistory = callHistory,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error loading data", e)
+                contactsState = DialerState.contacts(isLoading = false)
+                callHistoryState = DialerState.callHistory(isLoading = false)
+            }
+        }
+    }
+
+    private fun createNavigationCallbacks() = object : DialerNavigationCallbacks {
+        override fun onTabSelected(screenId: Any) {
+            navigationState = navigationState.copy(selectedTab = screenId)
         }
 
-        if (!hasAllPermissions()) {
+        override fun onShowDialerModal() {
+            navigationState = navigationState.copy(showDialerModal = true)
+        }
+
+        override fun onHideDialerModal() {
+            navigationState = navigationState.copy(showDialerModal = false)
+            dialerState = DialerState.keypad(canMakeCall = dialerState.canMakeCall)
+        }
+
+        override fun onRequestDefaultDialer() {
+            requestDefaultDialerRole()
+        }
+
+        override fun onRequestPermissions() {
             requestAllPermissions()
         }
+    }
 
-        if (!isDefaultDialerApp()) {
-            showDefaultDialerPrompt()
+    private fun createContactsCallbacks() = DialerCallbacks.contacts(
+        onContactSelected = { contact ->
+            // Handle contact selection
+        },
+        onCallContact = { phoneNumber ->
+            makeCall(phoneNumber)
+        },
+        onSearchQueryChanged = { query ->
+            val filtered = if (query.isBlank()) {
+                contactsState.contacts
+            } else {
+                contactsState.contacts.filter { contact ->
+                    contact.name.contains(query, ignoreCase = true) ||
+                            contact.phoneNumbers.any { it.contains(query) }
+                }
+            }
+
+            contactsState = DialerState.contacts(
+                contacts = contactsState.contacts,
+                isLoading = contactsState.isLoading,
+                searchQuery = query,
+                filteredContacts = filtered
+            )
+        }
+    )
+
+    private fun createCallHistoryCallbacks() = DialerCallbacks.callHistory(
+        onCallHistoryItemClicked = { phoneNumber ->
+            makeCall(phoneNumber)
+        },
+        onRefresh = {
+            loadData()
+        }
+    )
+
+    private fun createActiveCallCallbacks() = DialerCallbacks.activeCall(
+        onAnswerCall = {
+            scope.launch {
+                get<CallUseCases>().answerCall()
+            }
+        },
+        onRejectCall = {
+            scope.launch {
+                get<CallUseCases>().rejectCall()
+            }
+        },
+        onEndCall = {
+            scope.launch {
+                get<CallUseCases>().endCall()
+            }
+        },
+        onHoldCall = {
+            scope.launch {
+                get<CallUseCases>().holdCall()
+            }
+        },
+        onUnholdCall = {
+            scope.launch {
+                get<CallUseCases>().unholdCall()
+            }
+        },
+        onMuteCall = { muted ->
+            scope.launch {
+                get<CallUseCases>().muteCall(muted)
+            }
+        },
+        onShowAudioSelector = {
+            activeCallState = DialerState.activeCall(
+                callState = activeCallState.callState,
+                callDuration = activeCallState.callDuration,
+                showAudioSelector = true
+            )
+        },
+        onHideAudioSelector = {
+            activeCallState = DialerState.activeCall(
+                callState = activeCallState.callState,
+                callDuration = activeCallState.callDuration,
+                showAudioSelector = false
+            )
+        }
+    )
+
+    private fun createDialerCallbacks() = DialerCallbacks.keypad(
+        onNumberChanged = { number ->
+            dialerState = DialerState.keypad(
+                phoneNumber = dialerState.phoneNumber + number,
+                canMakeCall = dialerState.canMakeCall
+            )
+        },
+        onMakeCall = { phoneNumber ->
+            makeCall(phoneNumber)
+        },
+        onDeleteDigit = {
+            val currentNumber = dialerState.phoneNumber
+            if (currentNumber.isNotEmpty()) {
+                dialerState = DialerState.keypad(
+                    phoneNumber = currentNumber.dropLast(1),
+                    canMakeCall = dialerState.canMakeCall
+                )
+            }
+        },
+        onClearNumber = {
+            dialerState = DialerState.keypad(canMakeCall = dialerState.canMakeCall)
+        }
+    )
+
+    private fun makeCall(phoneNumber: String) {
+        if (!dialerState.canMakeCall) {
+            Toast.makeText(this, "Set as default dialer to make calls", Toast.LENGTH_SHORT).show()
+            requestDefaultDialerRole()
+            return
+        }
+
+        scope.launch {
+            try {
+                get<CallUseCases>().makeCall(phoneNumber)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error making call", e)
+                Toast.makeText(this@MainActivity, "Failed to make call", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        // Handle volume keys immediately, before checking call states
         if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            val callState = callManager.currentCallState.value
+            val callState = activeCallState.callState
             val isRinging = callState.isRinging && callState.isIncoming
             val isInCall = callState.isActive || callState.isOnHold
 
-            Log.d("VolumeKeys", "Volume key pressed - keyCode: $keyCode")
-            Log.d("VolumeKeys", "Call state - isRinging: $isRinging, isActive: ${callState.isActive}, isIncoming: ${callState.isIncoming}")
-
             if (isRinging) {
-                Log.d("VolumeKeys", "Silencing ringtone immediately")
                 callManager.ringtoneManager.silenceRinging()
-                return true // Consume the event
+                return true
             } else if (isInCall) {
-                Log.d("VolumeKeys", "Handling in-call volume")
                 return volumeKeyHandler.handleKeyEvent(keyCode, event, false, true)
             }
         }
@@ -134,13 +349,10 @@ class MainActivity : ComponentActivity() {
         if (event.action == KeyEvent.ACTION_DOWN) {
             val keyCode = event.keyCode
             if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-                val callState = callManager.currentCallState.value
+                val callState = activeCallState.callState
                 val isRinging = callState.isRinging && callState.isIncoming
 
-                Log.d("DispatchKey", "Dispatching volume key - keyCode: $keyCode, isRinging: $isRinging")
-
                 if (isRinging) {
-                    Log.d("DispatchKey", "Intercepting and silencing")
                     callManager.ringtoneManager.silenceRinging()
                     return true
                 }
@@ -153,23 +365,19 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         proximitySensorManager.startListening()
 
-        val activeCallManager = this.callManager
-        val callState = activeCallManager.currentCallState.value
-
-        if (callState != null) {
-            val isInCall = callState.isActive || callState.isRinging
-            proximitySensorManager.setCallActive(isInCall)
-        } else {
-            // Log an error or handle the case where callState is null
-            Log.e("MainActivity", "CallState is null in onResume")
-            // Optionally set a default for proximity sensor if state is unknown
-            proximitySensorManager.setCallActive(false)
-        }
+        val callState = activeCallState.callState
+        val isInCall = callState.isActive || callState.isRinging
+        proximitySensorManager.setCallActive(isInCall)
     }
 
     override fun onPause() {
         super.onPause()
         proximitySensorManager.stopListening()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        scope.cancel()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -185,19 +393,18 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        val dialerViewModel = get<DialerViewModel>()
-
         when (intent.action) {
             Intent.ACTION_DIAL -> {
                 val number = intent.data?.schemeSpecificPart
                 number?.let {
-                    dialerViewModel.onDialIntentReceived(it)
+                    dialerState = DialerState.keypad(phoneNumber = it, canMakeCall = dialerState.canMakeCall)
+                    navigationState = navigationState.copy(showDialerModal = true)
                 }
             }
             Intent.ACTION_CALL -> {
                 val number = intent.data?.schemeSpecificPart
                 if (!number.isNullOrEmpty() && isDefaultDialerApp()) {
-                    dialerViewModel.onCallIntentReceived(number)
+                    makeCall(number)
                 } else if (!isDefaultDialerApp()) {
                     Toast.makeText(this, "Set as default dialer to handle call intents.", Toast.LENGTH_LONG).show()
                     requestDefaultDialerRole()
@@ -206,7 +413,7 @@ class MainActivity : ComponentActivity() {
             "android.intent.action.CALL_PRIVILEGED" -> {
                 val number = intent.data?.schemeSpecificPart
                 if (!number.isNullOrEmpty() && isDefaultDialerApp()) {
-                    dialerViewModel.onCallIntentReceived(number)
+                    makeCall(number)
                 } else if (!isDefaultDialerApp()) {
                     Toast.makeText(this, "Set as default dialer to handle privileged call intents.", Toast.LENGTH_LONG).show()
                     requestDefaultDialerRole()
@@ -263,7 +470,7 @@ class MainActivity : ComponentActivity() {
                     !roleManager.isRoleHeld(RoleManager.ROLE_DIALER)) {
                     val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
                     defaultDialerLauncher.launch(intent)
-                } else if (!roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)){
+                } else if (!roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
                     Toast.makeText(this, "Dialer role not available on this device.", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(this, "App is already default or role cannot be requested.", Toast.LENGTH_SHORT).show()

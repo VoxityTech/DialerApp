@@ -70,7 +70,6 @@ fun DialerModalSheet(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Drag handle
                     Box(
                         modifier = Modifier
                             .width(40.dp)
@@ -81,7 +80,6 @@ fun DialerModalSheet(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Title
                     Text(
                         text = "Dialer",
                         style = MaterialTheme.typography.headlineSmall,
@@ -90,7 +88,6 @@ fun DialerModalSheet(
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Enhanced phone number display
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -137,7 +134,6 @@ fun DialerModalSheet(
 
                     Spacer(modifier = Modifier.height(32.dp))
 
-                    // Dial pad with extra bottom padding
                     Column {
                         DialerKeypad(
                             onNumberClick = { number ->
@@ -150,7 +146,6 @@ fun DialerModalSheet(
                             }
                         )
 
-                        // Extra space to push call button above navigation bar
                         Spacer(modifier = Modifier.height(100.dp))
                     }
                 }

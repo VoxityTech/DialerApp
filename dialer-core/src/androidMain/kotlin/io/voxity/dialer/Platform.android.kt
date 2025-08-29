@@ -9,9 +9,12 @@ import android.os.Build
 import android.os.Bundle
 import android.telecom.TelecomManager
 import android.util.Log
-import android.widget.Toast
 import androidx.core.content.ContextCompat
-import io.voxity.dialer.managers.CallManager
+import io.voxity.dialer.domain.models.CallResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 class AndroidPlatform : Platform {
     override val name: String = "Android ${Build.VERSION.SDK_INT}"
@@ -19,86 +22,92 @@ class AndroidPlatform : Platform {
 
 actual fun getPlatform(): Platform = AndroidPlatform()
 
-private lateinit var applicationContext: Context
-private val PLATFORM_TAG = "PlatformCalls"
+object PlatformCallManager : KoinComponent {
+    private val context: Context by inject()
 
-fun initializeContext(context: Context) {
-    applicationContext = context.applicationContext
-}
-
-actual fun makeCall(phoneNumber: String) {
-    try {
-        val telecomManager = applicationContext.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-        val hasCallPermission = ContextCompat.checkSelfPermission(
-            applicationContext,
-            Manifest.permission.CALL_PHONE
-        ) == PackageManager.PERMISSION_GRANTED
-
-        if (hasCallPermission) {
-            val uri = Uri.fromParts("tel", phoneNumber, null)
-            val extras = Bundle().apply {
-                putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
-                putLong("CALL_REQUEST_TIMESTAMP", System.currentTimeMillis())
-            }
-            telecomManager.placeCall(uri, extras)
-        } else {
-            val callIntent = Intent(Intent.ACTION_CALL).apply {
-                data = Uri.parse("tel:$phoneNumber")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            applicationContext.startActivity(callIntent)
-        }
-    } catch (e: Exception) {
-        Toast.makeText(applicationContext, "Error making call: ${e.message}", Toast.LENGTH_SHORT).show()
-    }
-}
-
-actual fun endCall() {
-    try {
-        val telecomManager = applicationContext.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val hasPermission = ContextCompat.checkSelfPermission(
-                applicationContext,
-                Manifest.permission.ANSWER_PHONE_CALLS
+    suspend fun makeCallInternal(phoneNumber: String): CallResult = withContext(Dispatchers.Main) {
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+            val hasCallPermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CALL_PHONE
             ) == PackageManager.PERMISSION_GRANTED
 
-            if (hasPermission) {
-                telecomManager.endCall()
+            if (hasCallPermission) {
+                val uri = Uri.fromParts("tel", phoneNumber, null)
+                val extras = Bundle().apply {
+                    putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
+                    putLong("CALL_REQUEST_TIMESTAMP", System.currentTimeMillis())
+                }
+                telecomManager.placeCall(uri, extras)
+                CallResult.Success
             } else {
-                Log.w(PLATFORM_TAG, "Missing ANSWER_PHONE_CALLS permission")
+                try {
+                    val callIntent = Intent(Intent.ACTION_CALL).apply {
+                        data = Uri.parse("tel:$phoneNumber")
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(callIntent)
+                    CallResult.Success
+                } catch (e: Exception) {
+                    CallResult.Error("No permission and unable to start call intent", e)
+                }
             }
+        } catch (e: Exception) {
+            CallResult.Error("Failed to make call", e)
         }
+    }
 
-        CallManager.create(applicationContext).endCall()
-    } catch (e: Exception) {
-        Log.e(PLATFORM_TAG, "End call error: ${e.message}")
+    suspend fun endCallInternal(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.ANSWER_PHONE_CALLS
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (hasPermission) {
+                    telecomManager.endCall()
+                } else {
+                    Log.w("PlatformCalls", "Missing ANSWER_PHONE_CALLS permission")
+                }
+            }
+            CallResult.Success
+        } catch (e: Exception) {
+            CallResult.Error("Failed to end call", e)
+        }
     }
 }
 
-actual fun answerCall() {
+actual suspend fun makeCall(phoneNumber: String): CallResult =
+    PlatformCallManager.makeCallInternal(phoneNumber)
+
+actual suspend fun endCall(): CallResult =
+    PlatformCallManager.endCallInternal()
+
+actual suspend fun answerCall(): CallResult = withContext(Dispatchers.Main) {
     try {
-        val telecomManager = applicationContext.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
+        val context: Context by PlatformCallManager.inject()
+        val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val hasPermission = ContextCompat.checkSelfPermission(
-                applicationContext,
+                context,
                 Manifest.permission.ANSWER_PHONE_CALLS
             ) == PackageManager.PERMISSION_GRANTED
 
             if (hasPermission) {
                 telecomManager.acceptRingingCall()
             } else {
-                Log.w(PLATFORM_TAG, "Missing ANSWER_PHONE_CALLS permission")
+                Log.w("PlatformCalls", "Missing ANSWER_PHONE_CALLS permission")
             }
         }
-
-        CallManager.create(applicationContext).answerCall()
+        CallResult.Success
     } catch (e: Exception) {
-        Log.e(PLATFORM_TAG, "Answer call error: ${e.message}")
+        CallResult.Error("Failed to answer call", e)
     }
 }
 
-actual fun rejectCall() {
-    endCall()
-}
+actual suspend fun rejectCall(): CallResult = endCall()

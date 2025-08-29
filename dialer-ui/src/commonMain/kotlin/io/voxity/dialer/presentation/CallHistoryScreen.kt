@@ -14,18 +14,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.voxity.dialer.domain.models.CallHistoryItem
 import io.voxity.dialer.domain.models.CallType
+import io.voxity.dialer.ui.state.CallHistoryScreenState
+import io.voxity.dialer.ui.callbacks.CallHistoryScreenCallbacks
 import io.voxity.dialer.ui.theme.CallColors
 
 @Composable
 fun CallHistoryScreen(
-    callHistory: List<CallHistoryItem>,
-    onCallClick: (String) -> Unit,
+    state: CallHistoryScreenState,
+    callbacks: CallHistoryScreenCallbacks,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.fillMaxSize()
-    ) {
-        // Header
+    Column(modifier = modifier.fillMaxSize()) {
         Text(
             text = "Recent",
             style = MaterialTheme.typography.headlineSmall,
@@ -34,38 +33,47 @@ fun CallHistoryScreen(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)
         )
 
-        if (callHistory.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+        when {
+            state.isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.History,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "No call history",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    CircularProgressIndicator()
                 }
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(callHistory) { item ->
-                    CallHistoryItemCard(
-                        item = item,
-                        onCallClick = { onCallClick(item.phoneNumber) }
-                    )
+            state.callHistory.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.History,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "No call history",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(state.callHistory) { item ->
+                        CallHistoryItem(
+                            item = item,
+                            onCallClick = { callbacks.onCallHistoryItemClicked(item.phoneNumber) }
+                        )
+                    }
                 }
             }
         }
@@ -73,7 +81,7 @@ fun CallHistoryScreen(
 }
 
 @Composable
-private fun CallHistoryItemCard(
+internal fun CallHistoryItem(
     item: CallHistoryItem,
     onCallClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -90,7 +98,6 @@ private fun CallHistoryItemCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Call type icon with colored background
             Surface(
                 shape = CircleShape,
                 color = when (item.callType) {
@@ -118,10 +125,7 @@ private fun CallHistoryItemCard(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Contact info
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = item.contactName.ifEmpty { item.phoneNumber },
                     style = MaterialTheme.typography.titleMedium,
@@ -137,9 +141,7 @@ private fun CallHistoryItemCard(
                     )
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = item.timestamp.toString().take(16),
                         style = MaterialTheme.typography.bodySmall,
@@ -155,17 +157,16 @@ private fun CallHistoryItemCard(
                 }
             }
 
-            // Call button with proper contrast like ContactsScreen
             Surface(
                 onClick = onCallClick,
                 shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), // Same as ContactsScreen
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                 modifier = Modifier.size(44.dp)
             ) {
                 Icon(
                     Icons.Default.Call,
                     contentDescription = "Call back",
-                    tint = MaterialTheme.colorScheme.primary, // Same as ContactsScreen
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
             }

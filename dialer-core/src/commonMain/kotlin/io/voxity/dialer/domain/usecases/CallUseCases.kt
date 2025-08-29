@@ -3,23 +3,25 @@ package io.voxity.dialer.domain.usecases
 import io.voxity.dialer.domain.repository.CallHistoryRepository
 import io.voxity.dialer.domain.repository.CallRepository
 import io.voxity.dialer.domain.repository.ContactRepository
+import io.voxity.dialer.domain.models.CallResult
+import io.voxity.dialer.domain.models.DialerResult
 
 class CallUseCases(
     private val callRepository: CallRepository,
     private val contactRepository: ContactRepository,
     private val callHistoryRepository: CallHistoryRepository
 ) {
-    fun makeCall(phoneNumber: String) = callRepository.makeCall(phoneNumber)
-    fun answerCall() = callRepository.answerCall()
-    fun endCall() = callRepository.endCall()
-    fun rejectCall() = callRepository.rejectCall()
-    fun holdCall() = callRepository.holdCall()
-    fun unholdCall() = callRepository.unholdCall()
-    fun muteCall(muted: Boolean) = callRepository.muteCall(muted)
-    fun blockNumber(phoneNumber: String) = callRepository.blockNumber(phoneNumber)
-    fun unblockNumber(phoneNumber: String) = callRepository.unblockNumber(phoneNumber)
-    fun isNumberBlocked(phoneNumber: String) = callRepository.isNumberBlocked(phoneNumber)
-    fun getBlockedNumbers() = callRepository.getBlockedNumbers()
+    suspend fun makeCall(phoneNumber: String): CallResult = callRepository.makeCall(phoneNumber)
+    suspend fun answerCall(): CallResult = callRepository.answerCall()
+    suspend fun endCall(): CallResult = callRepository.endCall()
+    suspend fun rejectCall(): CallResult = callRepository.rejectCall()
+    suspend fun holdCall(): CallResult = callRepository.holdCall()
+    suspend fun unholdCall(): CallResult = callRepository.unholdCall()
+    suspend fun muteCall(muted: Boolean): CallResult = callRepository.muteCall(muted)
+    suspend fun blockNumber(phoneNumber: String): DialerResult<Boolean> = callRepository.blockNumber(phoneNumber)
+    suspend fun unblockNumber(phoneNumber: String): DialerResult<Boolean> = callRepository.unblockNumber(phoneNumber)
+    suspend fun isNumberBlocked(phoneNumber: String): DialerResult<Boolean> = callRepository.isNumberBlocked(phoneNumber)
+    suspend fun getBlockedNumbers(): DialerResult<List<String>> = callRepository.getBlockedNumbers()
 
     val callState = callRepository.currentCallState
 

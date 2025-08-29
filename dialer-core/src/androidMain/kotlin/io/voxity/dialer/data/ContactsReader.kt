@@ -18,7 +18,6 @@ class ContactsReader(private val context: Context) {
         val contacts = mutableListOf<Contact>()
         val contactsMap = mutableMapOf<String, MutableList<String>>()
 
-        // Get contacts with phone numbers
         val cursor = context.contentResolver.query(
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
             arrayOf(

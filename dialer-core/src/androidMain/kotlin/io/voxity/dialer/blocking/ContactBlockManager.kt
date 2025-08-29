@@ -2,70 +2,94 @@ package io.voxity.dialer.blocking
 
 import android.content.Context
 import android.content.SharedPreferences
+import io.voxity.dialer.domain.models.DialerResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
-class ContactBlockManager private constructor(private val context: Context) {
+class ContactBlockManager(private val context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("blocked_contacts", Context.MODE_PRIVATE)
 
-    private val _blockedNumbers = MutableStateFlow(getBlockedNumbers())
+    private val _blockedNumbers = MutableStateFlow(getBlockedNumbersSync())
     val blockedNumbers: StateFlow<Set<String>> = _blockedNumbers.asStateFlow()
 
-    companion object {
-        @Volatile
-        private var INSTANCE: ContactBlockManager? = null
+    suspend fun blockNumber(phoneNumber: String): DialerResult<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val normalizedNumber = normalizePhoneNumber(phoneNumber)
+            val currentBlocked = _blockedNumbers.value.toMutableSet()
+            currentBlocked.add(normalizedNumber)
 
-        fun getInstance(context: Context): ContactBlockManager {
-            return INSTANCE ?: synchronized(this) {
-                INSTANCE ?: ContactBlockManager(context.applicationContext).also { INSTANCE = it }
-            }
-        }
-    }
-
-    fun blockNumber(phoneNumber: String): Boolean {
-        val normalizedNumber = normalizePhoneNumber(phoneNumber)
-        val currentBlocked = _blockedNumbers.value.toMutableSet()
-        currentBlocked.add(normalizedNumber)
-
-        return saveBlockedNumbers(currentBlocked).also { success ->
+            val success = saveBlockedNumbers(currentBlocked)
             if (success) {
                 _blockedNumbers.value = currentBlocked
+                DialerResult.Success(true)
+            } else {
+                DialerResult.Error("Failed to save blocked number")
             }
+        } catch (e: Exception) {
+            DialerResult.Error("Failed to block number", e)
         }
     }
 
-    fun unblockNumber(phoneNumber: String): Boolean {
-        val normalizedNumber = normalizePhoneNumber(phoneNumber)
-        val currentBlocked = _blockedNumbers.value.toMutableSet()
-        currentBlocked.remove(normalizedNumber)
+    suspend fun unblockNumber(phoneNumber: String): DialerResult<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val normalizedNumber = normalizePhoneNumber(phoneNumber)
+            val currentBlocked = _blockedNumbers.value.toMutableSet()
+            val wasRemoved = currentBlocked.remove(normalizedNumber)
 
-        return saveBlockedNumbers(currentBlocked).also { success ->
-            if (success) {
-                _blockedNumbers.value = currentBlocked
+            if (wasRemoved) {
+                val success = saveBlockedNumbers(currentBlocked)
+                if (success) {
+                    _blockedNumbers.value = currentBlocked
+                    DialerResult.Success(true)
+                } else {
+                    DialerResult.Error("Failed to save unblocked number")
+                }
+            } else {
+                DialerResult.Success(false) // Number wasn't blocked
             }
+        } catch (e: Exception) {
+            DialerResult.Error("Failed to unblock number", e)
         }
     }
 
-    fun isNumberBlocked(phoneNumber: String): Boolean {
-        val normalizedNumber = normalizePhoneNumber(phoneNumber)
-        return _blockedNumbers.value.any { blockedNumber ->
-            normalizedNumber.contains(blockedNumber) || blockedNumber.contains(normalizedNumber)
+    suspend fun isNumberBlocked(phoneNumber: String): DialerResult<Boolean> = withContext(Dispatchers.IO) {
+        try {
+            val normalizedNumber = normalizePhoneNumber(phoneNumber)
+            val isBlocked = _blockedNumbers.value.any { blockedNumber ->
+                normalizedNumber.contains(blockedNumber) || blockedNumber.contains(normalizedNumber)
+            }
+            DialerResult.Success(isBlocked)
+        } catch (e: Exception) {
+            DialerResult.Error("Failed to check if number is blocked", e)
         }
     }
 
-    private fun getBlockedNumbers(): Set<String> {
-        return prefs.getStringSet("blocked_numbers", emptySet()) ?: emptySet()
+    suspend fun getBlockedNumbers(): DialerResult<List<String>> = withContext(Dispatchers.IO) {
+        try {
+            DialerResult.Success(_blockedNumbers.value.toList())
+        } catch (e: Exception) {
+            DialerResult.Error("Failed to get blocked numbers", e)
+        }
+    }
+
+    private fun getBlockedNumbersSync(): Set<String> {
+        return try {
+            prefs.getStringSet("blocked_numbers", emptySet()) ?: emptySet()
+        } catch (e: Exception) {
+            emptySet()
+        }
     }
 
     private fun saveBlockedNumbers(blockedNumbers: Set<String>): Boolean {
         return try {
             prefs.edit()
                 .putStringSet("blocked_numbers", blockedNumbers)
-                .apply()
-            true
+                .commit()
         } catch (e: Exception) {
             false
         }
@@ -80,9 +104,5 @@ class ContactBlockManager private constructor(private val context: Context) {
                     else -> cleaned
                 }
             }
-    }
-
-    fun getBlockedNumbersList(): List<String> {
-        return _blockedNumbers.value.toList()
     }
 }

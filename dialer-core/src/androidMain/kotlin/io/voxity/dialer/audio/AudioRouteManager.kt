@@ -103,16 +103,13 @@ class AudioRouteManager(private val context: Context) {
     private fun updateAvailableRoutes() {
         val routes = mutableListOf<AudioRoute>()
 
-        // Always available
         routes.add(AudioRoute.EARPIECE)
         routes.add(AudioRoute.SPEAKER)
 
-        // Check for Bluetooth
         if (isBluetoothAvailable()) {
             routes.add(AudioRoute.BLUETOOTH)
         }
 
-        // Check for wired headset
         if (isWiredHeadsetConnected()) {
             routes.add(AudioRoute.WIRED_HEADSET)
         }

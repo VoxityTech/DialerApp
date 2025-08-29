@@ -13,24 +13,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.voxity.dialer.components.DialerKeypad
-import io.voxity.dialer.domain.usecases.CallUseCases
+import io.voxity.dialer.ui.state.DialerScreenState
+import io.voxity.dialer.ui.callbacks.DialerScreenCallbacks
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DialerScreen(
-    modifier: Modifier = Modifier,
-    canMakeCall: Boolean = false,
-    callUseCases: CallUseCases
+    state: DialerScreenState,
+    callbacks: DialerScreenCallbacks,
+    modifier: Modifier = Modifier
 ) {
-    var phoneNumber by remember { mutableStateOf("") }
-
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.SpaceBetween
     ) {
-        // Top bar with app name
         Text(
             text = "Dialer",
             fontSize = 24.sp,
@@ -38,8 +35,7 @@ fun DialerScreen(
             modifier = Modifier.padding(vertical = 16.dp)
         )
 
-        // Warning if not default dialer
-        if (!canMakeCall) {
+        if (!state.canMakeCall) {
             Card(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))
@@ -53,7 +49,6 @@ fun DialerScreen(
             }
         }
 
-        // Phone number display
         Column {
             Card(
                 modifier = Modifier
@@ -69,24 +64,18 @@ fun DialerScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = phoneNumber.ifEmpty { "Enter phone number" },
+                        text = state.phoneNumber.ifEmpty { "Enter phone number" },
                         fontSize = 20.sp,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.Start,
-                        color = if (phoneNumber.isEmpty())
+                        color = if (state.phoneNumber.isEmpty())
                             MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                         else
                             MaterialTheme.colorScheme.onSurface
                     )
 
-                    if (phoneNumber.isNotEmpty()) {
-                        IconButton(
-                            onClick = {
-                                if (phoneNumber.isNotEmpty()) {
-                                    phoneNumber = phoneNumber.dropLast(1)
-                                }
-                            }
-                        ) {
+                    if (state.phoneNumber.isNotEmpty()) {
+                        IconButton(onClick = callbacks::onDeleteDigit) {
                             Icon(
                                 imageVector = Icons.Default.Backspace,
                                 contentDescription = "Delete"
@@ -97,14 +86,11 @@ fun DialerScreen(
             }
         }
 
-        // Dial pad
         DialerKeypad(
-            onNumberClick = { number ->
-                phoneNumber += number
-            },
+            onNumberClick = callbacks::onNumberChanged,
             onCallClick = {
-                if (phoneNumber.isNotEmpty() && canMakeCall) {
-                    callUseCases.makeCall(phoneNumber)
+                if (state.phoneNumber.isNotEmpty() && state.canMakeCall) {
+                    callbacks.onMakeCall(state.phoneNumber)
                 }
             },
             modifier = Modifier.padding(vertical = 32.dp)

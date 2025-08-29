@@ -17,41 +17,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.voxity.dialer.domain.models.Contact
+import io.voxity.dialer.ui.state.ContactsScreenState
+import io.voxity.dialer.ui.callbacks.ContactsScreenCallbacks
 
 @Composable
 fun ContactsScreen(
-    contacts: List<Contact>,
-    onCallClick: (String) -> Unit,
-    onBlockNumber: (String) -> Unit = {},
-    onUnblockNumber: (String) -> Unit = {},
+    state: ContactsScreenState,
+    callbacks: ContactsScreenCallbacks,
     modifier: Modifier = Modifier
 ) {
-    var searchQuery by remember { mutableStateOf("") }
-
-    val filteredContacts = remember(contacts, searchQuery) {
-        if (searchQuery.isBlank()) {
-            contacts
-        } else {
-            contacts.filter { contact ->
-                contact.name.contains(searchQuery, ignoreCase = true) ||
-                        contact.phoneNumbers.any { it.contains(searchQuery) }
-            }
-        }
-    }
-
     Column(modifier = modifier.fillMaxSize()) {
-        // Clean search bar
         OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
+            value = state.searchQuery,
+            onValueChange = callbacks::onSearchQueryChanged,
             placeholder = { Text("Search contacts") },
             leadingIcon = {
                 Icon(Icons.Default.Search, contentDescription = "Search")
             },
             trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
+                if (state.searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { callbacks.onSearchQueryChanged("") }) {
                         Icon(Icons.Default.Clear, contentDescription = "Clear")
                     }
                 }
@@ -61,31 +46,43 @@ fun ContactsScreen(
                 .padding(16.dp)
         )
 
-        if (filteredContacts.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "No contacts found",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        when {
+            state.isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
             }
-        } else {
-            LazyColumn(
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredContacts, key = { it.name }) { contact ->
-                    ContactItem(
-                        contact = contact,
-                        onCallClick = {
-                            contact.phoneNumbers.firstOrNull()?.let { number ->
-                                onCallClick(number)
-                            }
-                        }
+            state.filteredContacts.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No contacts found",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+            else -> {
+                LazyColumn(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(state.filteredContacts, key = { it.name }) { contact ->
+                        ContactItem(
+                            contact = contact,
+                            onContactSelected = { callbacks.onContactSelected(contact) },
+                            onCallClick = {
+                                contact.phoneNumbers.firstOrNull()?.let { number ->
+                                    callbacks.onCallContact(number)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -93,13 +90,14 @@ fun ContactsScreen(
 }
 
 @Composable
-private fun ContactItem(
-    contact: Contact,
+internal fun ContactItem(
+    contact: io.voxity.dialer.domain.models.Contact,
+    onContactSelected: () -> Unit = {},
     onCallClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = onCallClick,
+        onClick = onContactSelected,
         modifier = modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surface
@@ -127,9 +125,7 @@ private fun ContactItem(
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = contact.name,
                     style = MaterialTheme.typography.titleMedium,

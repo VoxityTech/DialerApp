@@ -60,7 +60,6 @@ class CallRingtoneManager(private val context: Context) {
             isSilenced = false
             Log.d(TAG, "Starting ringtone playback")
 
-            // Try MediaPlayer first
             mediaPlayer?.release()
             mediaPlayer = MediaPlayer().apply {
                 setDataSource(context, ringtoneUri)
@@ -75,7 +74,6 @@ class CallRingtoneManager(private val context: Context) {
                 start()
             }
 
-            // Start vibration
             startVibration()
 
         } catch (e: Exception) {

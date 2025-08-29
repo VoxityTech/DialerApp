@@ -7,13 +7,16 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import io.voxity.dialer.domain.models.DialerConfig
 import io.voxity.dialer.receivers.CallActionReceiver
 
-class CallNotificationManager(private val context: Context) {
+class CallNotificationManager(
+    private val context: Context,
+    private val config: DialerConfig
+) {
 
     private val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     private val CALL_NOTIFICATION_ID = 1001
-    private val CHANNEL_ID = "incoming_calls"
 
     init {
         createNotificationChannel()
@@ -22,14 +25,16 @@ class CallNotificationManager(private val context: Context) {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Incoming Calls",
+                config.notificationChannelId,
+                config.notificationChannelName,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
                 description = "Notifications for incoming calls"
                 setSound(null, null)
-                enableVibration(true)
-                vibrationPattern = longArrayOf(0, 1000, 500, 1000)
+                enableVibration(config.enableVibration)
+                if (config.enableVibration) {
+                    vibrationPattern = longArrayOf(0, 1000, 500, 1000)
+                }
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -40,7 +45,6 @@ class CallNotificationManager(private val context: Context) {
         callerNumber: String,
         targetActivityClass: Class<*>? = null
     ) {
-        // Create generic intent that can be overridden by consuming app
         val fullScreenIntent = targetActivityClass?.let { activityClass ->
             Intent(context, activityClass).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -57,7 +61,6 @@ class CallNotificationManager(private val context: Context) {
             )
         }
 
-        // Answer intent - fixed syntax
         val answerIntent = Intent(context, CallActionReceiver::class.java).apply {
             action = "ACTION_ANSWER_CALL"
         }
@@ -66,7 +69,6 @@ class CallNotificationManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Reject intent - fixed syntax
         val rejectIntent = Intent(context, CallActionReceiver::class.java).apply {
             action = "ACTION_REJECT_CALL"
         }
@@ -75,7 +77,7 @@ class CallNotificationManager(private val context: Context) {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(context, config.notificationChannelId)
             .setContentTitle("Incoming call")
             .setContentText("$callerName ($callerNumber)")
             .setSmallIcon(android.R.drawable.ic_menu_call)

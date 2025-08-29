@@ -183,7 +183,6 @@ class DialerViewModel(
 
     fun onDialIntentReceived(phoneNumber: String) {
         // For DIAL intents, just show the number in the UI, don't auto-call
-        // You could set a state that the dialer screen observes to pre-fill the number
         println("DialerViewModel: Received dial intent for $phoneNumber")
         // Don't call makeCall() here - that creates the loop!
     }

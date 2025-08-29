@@ -1,48 +1,47 @@
 package io.voxity.dialer.services
 
-import android.content.Intent
-import android.os.Build
-import android.os.Bundle
-import android.os.IBinder
 import android.telecom.Call
 import android.telecom.InCallService
 import android.util.Log
-import androidx.annotation.RequiresApi
-import io.voxity.dialer.managers.CallManager
+import io.voxity.dialer.domain.repository.CallRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
-class DialerInCallService : InCallService() {
+class DialerInCallService : InCallService(), KoinComponent {
 
     private val TAG = "DialerInCallService"
-    private val callManager by lazy { CallManager.create(this) }
+    private val callRepository: CallRepository by inject()
+
+    // Create proper coroutine scope
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
         call.registerCallback(callCallback)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            callManager.addCall(call)
-        }
-
+        callRepository.onCallAdded(call)
         launchInCallUI(call)
     }
 
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
         call.unregisterCallback(callCallback)
-        callManager.removeCall(call)
+        callRepository.onCallRemoved(call)
     }
 
     override fun onSilenceRinger() {
         super.onSilenceRinger()
         Log.d(TAG, "onSilenceRinger() called")
-        callManager.ringtoneManager.silenceRinging()
+        callRepository.silenceRinger()
     }
 
     private val callCallback = object : Call.Callback() {
-        @RequiresApi(Build.VERSION_CODES.Q)
         override fun onStateChanged(call: Call, state: Int) {
             super.onStateChanged(call, state)
-            callManager.updateCallState()
+            callRepository.onCallStateChanged()
 
             when (state) {
                 Call.STATE_RINGING -> {
@@ -58,13 +57,16 @@ class DialerInCallService : InCallService() {
 
         override fun onDetailsChanged(call: Call, details: Call.Details) {
             super.onDetailsChanged(call, details)
-            callManager.updateCallDetails()
+            callRepository.onCallDetailsChanged()
         }
     }
 
     private fun launchInCallUI(call: Call) {
-        // This will be handled by the consuming app
-        // The service shouldn't know about specific activities
         Log.d(TAG, "Call UI should be launched by consuming app")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
     }
 }

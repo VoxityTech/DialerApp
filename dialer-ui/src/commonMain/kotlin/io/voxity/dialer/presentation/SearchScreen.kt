@@ -47,7 +47,6 @@ fun SearchScreen(
     Column(
         modifier = modifier.fillMaxSize()
     ) {
-        // Search header
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(

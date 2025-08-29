@@ -18,37 +18,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.voxity.dialer.components.CircularCallButton
-import io.voxity.dialer.domain.models.CallState
+import io.voxity.dialer.ui.state.ActiveCallScreenState
+import io.voxity.dialer.ui.callbacks.ActiveCallScreenCallbacks
 import io.voxity.dialer.ui.theme.CallColors
-import kotlinx.coroutines.delay
-import kotlin.time.Duration.Companion.seconds
-
-
 
 @Composable
-fun ActiveCallView(
-    callState: CallState,
-    onAnswerCall: () -> Unit,
-    onRejectCall: () -> Unit,
-    onEndCall: () -> Unit,
-    onHoldCall: () -> Unit,
-    onUnholdCall: () -> Unit,
-    onMuteCall: (Boolean) -> Unit,
+fun ActiveCallScreen(
+    state: ActiveCallScreenState,
+    callbacks: ActiveCallScreenCallbacks,
     modifier: Modifier = Modifier
 ) {
-    var callDuration by remember { mutableStateOf(0L) }
-
-    LaunchedEffect(callState.isActive) {
-        if (callState.isActive) {
-            while (callState.isActive) {
-                delay(1.seconds)
-                callDuration++
-            }
-        } else {
-            callDuration = 0
-        }
-    }
-
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -62,18 +41,13 @@ fun ActiveCallView(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             AnimatedCallInfo(
-                callState = callState,
-                callDuration = callDuration
+                callState = state.callState,
+                callDuration = state.callDuration
             )
 
             AnimatedCallControls(
-                callState = callState,
-                onAnswerCall = onAnswerCall,
-                onRejectCall = onRejectCall,
-                onEndCall = onEndCall,
-                onHoldCall = onHoldCall,
-                onUnholdCall = onUnholdCall,
-                onMuteCall = onMuteCall
+                state = state,
+                callbacks = callbacks
             )
         }
     }
@@ -82,7 +56,7 @@ fun ActiveCallView(
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun AnimatedCallInfo(
-    callState: CallState,
+    callState: io.voxity.dialer.domain.models.CallState,
     callDuration: Long
 ) {
     AnimatedContent(
@@ -109,7 +83,7 @@ private fun AnimatedCallInfo(
                 modifier = Modifier
                     .size(120.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary), // Uses black in light mode, white in dark mode
+                    .background(MaterialTheme.colorScheme.primary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -117,7 +91,7 @@ private fun AnimatedCallInfo(
                         ?: state.phoneNumber.firstOrNull()?.toString() ?: "?",
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary, // Uses white in light mode, black in dark mode
+                    color = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
                 )
             }
@@ -151,30 +125,23 @@ private fun AnimatedCallInfo(
     }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 private fun AnimatedCallControls(
-    callState: CallState,
-    onAnswerCall: () -> Unit,
-    onRejectCall: () -> Unit,
-    onEndCall: () -> Unit,
-    onHoldCall: () -> Unit,
-    onUnholdCall: () -> Unit,
-    onMuteCall: (Boolean) -> Unit
+    state: ActiveCallScreenState,
+    callbacks: ActiveCallScreenCallbacks
 ) {
     when {
-        callState.isConnecting -> {
+        state.callState.isConnecting -> {
             CircularCallButton(
                 icon = Icons.Default.CallEnd,
                 backgroundColor = Color.Red,
-                onClick = onEndCall,
+                onClick = callbacks::onEndCall,
                 contentDescription = "End call",
                 modifier = Modifier.size(80.dp)
             )
         }
 
-
-        callState.isRinging && callState.isIncoming -> {
+        state.callState.isRinging && state.callState.isIncoming -> {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -183,7 +150,7 @@ private fun AnimatedCallControls(
                 CircularCallButton(
                     icon = Icons.Default.CallEnd,
                     backgroundColor = CallColors.callRed,
-                    onClick = onRejectCall,
+                    onClick = callbacks::onRejectCall,
                     contentDescription = "Reject call",
                     modifier = Modifier.size(72.dp)
                 )
@@ -191,20 +158,17 @@ private fun AnimatedCallControls(
                 CircularCallButton(
                     icon = Icons.Default.Call,
                     backgroundColor = CallColors.callGreen,
-                    onClick = onAnswerCall,
+                    onClick = callbacks::onAnswerCall,
                     contentDescription = "Answer call",
                     modifier = Modifier.size(72.dp)
                 )
             }
         }
 
-        callState.isActive || callState.isOnHold -> {
+        state.callState.isActive || state.callState.isOnHold -> {
             ActiveCallControls(
-                callState = callState,
-                onEndCall = onEndCall,
-                onHoldCall = onHoldCall,
-                onUnholdCall = onUnholdCall,
-                onMuteCall = onMuteCall
+                state = state,
+                callbacks = callbacks
             )
         }
     }
@@ -212,46 +176,38 @@ private fun AnimatedCallControls(
 
 @Composable
 private fun ActiveCallControls(
-    callState: CallState,
-    onEndCall: () -> Unit,
-    onHoldCall: () -> Unit,
-    onUnholdCall: () -> Unit,
-    onMuteCall: (Boolean) -> Unit
+    state: ActiveCallScreenState,
+    callbacks: ActiveCallScreenCallbacks
 ) {
-    var showAudioSelector by remember { mutableStateOf(false) }
-
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             CircularCallButton(
-                icon = if (callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                backgroundColor = if (callState.isMuted) CallColors.callRed else MaterialTheme.colorScheme.surfaceVariant,
-                onClick = { onMuteCall(!callState.isMuted) },
-                contentDescription = if (callState.isMuted) "Unmute" else "Mute"
+                icon = if (state.callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                backgroundColor = if (state.callState.isMuted) CallColors.callRed else MaterialTheme.colorScheme.surfaceVariant,
+                onClick = { callbacks.onMuteCall(!state.callState.isMuted) },
+                contentDescription = if (state.callState.isMuted) "Unmute" else "Mute"
             )
 
             CircularCallButton(
-                icon = if (callState.isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
+                icon = if (state.callState.isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
                 backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
                 onClick = {
-                    if (callState.isOnHold) {
-                        onUnholdCall()
+                    if (state.callState.isOnHold) {
+                        callbacks.onUnholdCall()
                     } else {
-                        onHoldCall()
+                        callbacks.onHoldCall()
                     }
                 },
-                contentDescription = if (callState.isOnHold) "Unhold" else "Hold"
+                contentDescription = if (state.callState.isOnHold) "Unhold" else "Hold"
             )
 
             CircularCallButton(
                 icon = Icons.Default.VolumeUp,
                 backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
-                onClick = { showAudioSelector = true },
+                onClick = callbacks::onShowAudioSelector,
                 contentDescription = "Audio options"
             )
         }
@@ -261,15 +217,14 @@ private fun ActiveCallControls(
         CircularCallButton(
             icon = Icons.Default.CallEnd,
             backgroundColor = CallColors.callRed,
-            onClick = onEndCall,
+            onClick = callbacks::onEndCall,
             contentDescription = "End call",
             modifier = Modifier.size(80.dp)
         )
     }
 }
 
-
-private fun getCallStatusText(callState: CallState, callDuration: Long): String {
+private fun getCallStatusText(callState: io.voxity.dialer.domain.models.CallState, callDuration: Long): String {
     return when {
         callState.isConnecting -> "Connecting..."
         callState.isRinging && callState.isIncoming -> "Incoming call"

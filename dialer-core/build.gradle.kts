@@ -29,7 +29,6 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            // NO Compose UI dependencies here - only core functionality
             implementation(libs.kotlinx.datetime)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.koin.core)

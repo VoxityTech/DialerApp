@@ -4,11 +4,13 @@ import android.content.Context
 import android.os.Build
 import android.telecom.Call
 import android.telecom.Connection
-import androidx.annotation.RequiresApi
 import io.voxity.dialer.audio.CallAudioManager
 import io.voxity.dialer.audio.CallRingtoneManager
 import io.voxity.dialer.blocking.ContactBlockManager
 import io.voxity.dialer.notifications.CallNotificationManager
+import io.voxity.dialer.domain.models.DialerConfig
+import io.voxity.dialer.domain.models.CallResult
+import io.voxity.dialer.domain.models.DialerResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,10 +20,17 @@ import io.voxity.dialer.domain.models.CallState
 import io.voxity.dialer.domain.repository.CallRepository
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class CallManager private constructor(
+class CallManager(
     private val context: Context,
-    private val callRepository: CallRepository? = null
+    private val config: DialerConfig,
+    private val audioManager: CallAudioManager,
+    val ringtoneManager: CallRingtoneManager,
+    private val notificationManager: CallNotificationManager,
+    private val blockManager: ContactBlockManager
 ) : CallRepository {
 
     private val TAG = "CallManager"
@@ -35,46 +44,36 @@ class CallManager private constructor(
     private val _currentCallState = MutableStateFlow(CallState())
     override val currentCallState: StateFlow<CallState> = _currentCallState.asStateFlow()
 
-    // New components
-    private val notificationManager = CallNotificationManager(context)
-    val ringtoneManager = CallRingtoneManager(context)
-    private val blockManager = ContactBlockManager.Companion.getInstance(context)
+    override suspend fun makeCall(phoneNumber: String): CallResult = withContext(Dispatchers.IO) {
+        try {
+            val isBlocked = blockManager.isNumberBlocked(phoneNumber)
+            if (isBlocked is DialerResult.Success && isBlocked.data) {
+                return@withContext CallResult.Error("Number is blocked")
+            }
 
-    private val audioManager = CallAudioManager(context)
+            _currentCallState.value = CallState(
+                isConnecting = true,
+                phoneNumber = phoneNumber,
+                contactName = phoneNumber,
+                isIncoming = false
+            )
 
-    companion object {
-        fun create(context: Context): CallManager {
-            return CallManager(context.applicationContext)
-        }
-
-        @Deprecated("Use create() instead", ReplaceWith("CallManager.create(context)"))
-        fun getInstance(context: Context? = null): CallManager {
-            return create(context!!)
+            io.voxity.dialer.makeCall(phoneNumber)
+            CallResult.Success
+        } catch (e: Exception) {
+            CallResult.Error("Failed to make call", e)
         }
     }
 
-    override fun makeCall(phoneNumber: String) {
-        if (blockManager.isNumberBlocked(phoneNumber)) {
-            return
-        }
-
-        _currentCallState.value = CallState(
-            isConnecting = true,
-            phoneNumber = phoneNumber,
-            contactName = phoneNumber,
-            isIncoming = false
-        )
-        io.voxity.dialer.makeCall(phoneNumber)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.Q)
     fun addCall(call: Call) {
         val currentCalls = _activeCalls.value.toMutableList()
         currentCalls.add(call)
         _activeCalls.value = currentCalls
 
         if (call.details.callDirection == Call.Details.DIRECTION_INCOMING) {
-            handleIncomingCall(call)
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                handleIncomingCall(call)
+            }
         }
 
         updateCurrentCallState()
@@ -110,84 +109,134 @@ class CallManager private constructor(
         updateCurrentCallState()
     }
 
-    private fun handleIncomingCall(call: Call) {
+    private suspend fun handleIncomingCall(call: Call) = withContext(Dispatchers.IO) {
         val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
         val callerName = call.details.contactDisplayName ?: phoneNumber
 
-        if (blockManager.isNumberBlocked(phoneNumber)) {
-            // Auto-reject blocked calls
+        val isBlockedResult = blockManager.isNumberBlocked(phoneNumber)
+        if (isBlockedResult is DialerResult.Success && isBlockedResult.data) {
             call.reject(false, "Number blocked")
             removeCall(call)
-            return
+            return@withContext
         }
 
         notificationManager.showIncomingCallNotification(callerName, phoneNumber)
-        ringtoneManager.startRinging()
-    }
-
-    override fun answerCall() {
-        ringtoneManager.stopRinging()
-        notificationManager.cancelCallNotification()
-
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
-            call.answer(0)
+        if (config.enableRingtone) {
+            ringtoneManager.startRinging()
         }
     }
 
-    override fun rejectCall() {
-        ringtoneManager.stopRinging()
-        notificationManager.cancelCallNotification()
+    override suspend fun answerCall(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            ringtoneManager.stopRinging()
+            notificationManager.cancelCallNotification()
 
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
-            call.reject(false, "User rejected")
-        }
-        _currentCallState.value = CallState()
-    }
-
-    override fun endCall() {
-        ringtoneManager.stopRinging()
-        notificationManager.cancelCallNotification()
-
-        _activeCalls.value.firstOrNull()?.let { call ->
-            call.disconnect()
-        }
-        _currentCallState.value = CallState()
-    }
-
-    override fun holdCall() {
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_ACTIVE }?.let { call ->
-            call.hold()
-            updateCurrentCallState()
+            _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
+                call.answer(0)
+                CallResult.Success
+            } ?: CallResult.Error("No ringing call found")
+        } catch (e: Exception) {
+            CallResult.Error("Failed to answer call", e)
         }
     }
 
-    override fun unholdCall() {
-        _activeCalls.value.firstOrNull { it.state == Call.STATE_HOLDING }?.let { call ->
-            call.unhold()
-            updateCurrentCallState()
+    override suspend fun rejectCall(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            ringtoneManager.stopRinging()
+            notificationManager.cancelCallNotification()
+
+            _activeCalls.value.firstOrNull { it.state == Call.STATE_RINGING }?.let { call ->
+                call.reject(false, "User rejected")
+                _currentCallState.value = CallState()
+                CallResult.Success
+            } ?: CallResult.Error("No ringing call found")
+        } catch (e: Exception) {
+            CallResult.Error("Failed to reject call", e)
         }
     }
 
-    override fun muteCall(muted: Boolean) {
-        audioManager.setMute(muted)
-        val currentState = _currentCallState.value
-        _currentCallState.value = currentState.copy(isMuted = muted)
+    override suspend fun endCall(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            ringtoneManager.stopRinging()
+            notificationManager.cancelCallNotification()
+
+            _activeCalls.value.firstOrNull()?.let { call ->
+                call.disconnect()
+                _currentCallState.value = CallState()
+                CallResult.Success
+            } ?: CallResult.Error("No active call found")
+        } catch (e: Exception) {
+            CallResult.Error("Failed to end call", e)
+        }
     }
 
-    override fun blockNumber(phoneNumber: String): Boolean {
-        return blockManager.blockNumber(phoneNumber)
+    override suspend fun holdCall(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            _activeCalls.value.firstOrNull { it.state == Call.STATE_ACTIVE }?.let { call ->
+                call.hold()
+                updateCurrentCallState()
+                CallResult.Success
+            } ?: CallResult.Error("No active call to hold")
+        } catch (e: Exception) {
+            CallResult.Error("Failed to hold call", e)
+        }
     }
 
-    override fun unblockNumber(phoneNumber: String): Boolean {
-        return blockManager.unblockNumber(phoneNumber)
+    override suspend fun unholdCall(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            _activeCalls.value.firstOrNull { it.state == Call.STATE_HOLDING }?.let { call ->
+                call.unhold()
+                updateCurrentCallState()
+                CallResult.Success
+            } ?: CallResult.Error("No call on hold")
+        } catch (e: Exception) {
+            CallResult.Error("Failed to unhold call", e)
+        }
     }
 
-    override fun isNumberBlocked(phoneNumber: String): Boolean {
-        return blockManager.isNumberBlocked(phoneNumber)
+    override suspend fun muteCall(muted: Boolean): CallResult {
+        return audioManager.setMute(muted)
     }
 
-    override fun getBlockedNumbers(): List<String> {
-        return blockManager.getBlockedNumbersList()
+    override suspend fun blockNumber(phoneNumber: String): DialerResult<Boolean> = withContext(Dispatchers.IO) {
+        blockManager.blockNumber(phoneNumber)
+    }
+
+    override suspend fun unblockNumber(phoneNumber: String): DialerResult<Boolean> = withContext(Dispatchers.IO) {
+        blockManager.unblockNumber(phoneNumber)
+    }
+
+    override suspend fun isNumberBlocked(phoneNumber: String): DialerResult<Boolean> = withContext(Dispatchers.IO) {
+        blockManager.isNumberBlocked(phoneNumber)
+    }
+
+    override suspend fun getBlockedNumbers(): DialerResult<List<String>> = withContext(Dispatchers.IO) {
+        blockManager.getBlockedNumbers()
+    }
+
+    // Add these implementations to CallManager
+    override fun onCallAdded(call: Any) {
+        if (call is Call && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            addCall(call)
+        }
+    }
+
+    override fun onCallRemoved(call: Any) {
+        if (call is Call) {
+            removeCall(call)
+        }
+    }
+
+    override fun onCallStateChanged() {
+        updateCallState()
+    }
+
+    override fun onCallDetailsChanged() {
+        updateCallDetails()
+    }
+
+    override fun silenceRinger() {
+        ringtoneManager.silenceRinging()
     }
 
     @OptIn(ExperimentalTime::class)
@@ -214,18 +263,23 @@ class CallManager private constructor(
             )
             _currentCallState.value = callState
 
-            // Handle audio focus
-            if (callState.isActive) {
-                audioManager.requestAudioFocus()
+            // Use coroutine scope for async operations
+            if (callState.isActive && config.enableAudioFocus) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    audioManager.requestAudioFocus()
+                }
             } else if (!callState.isRinging && !callState.isOnHold && !callState.isConnecting) {
-                audioManager.abandonAudioFocus()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    audioManager.abandonAudioFocus()
+                }
             }
         } else {
-            // Only clear state if not connecting
             val currentState = _currentCallState.value
             if (!currentState.isConnecting) {
                 _currentCallState.value = CallState()
-                audioManager.abandonAudioFocus()
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    audioManager.abandonAudioFocus()
+                }
             }
         }
     }
