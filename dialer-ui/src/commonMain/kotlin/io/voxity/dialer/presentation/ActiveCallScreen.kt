@@ -5,16 +5,18 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.voxity.dialer.components.CircularCallButton
@@ -51,16 +53,24 @@ fun ActiveCallScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color.Black)
+            .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1A1A2E),
+                        Color(0xFF16213E),
+                        Color(0xFF0F1419)
+                    )
+                )
+            )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp),
+                .padding(24.dp),
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            AnimatedCallInfo(
+            EnhancedCallInfo(
                 callState = state.callState,
                 callDuration = callDuration,
                 onSaveContact = onSaveContact?.let { saveCallback ->
@@ -73,93 +83,121 @@ fun ActiveCallScreen(
                 }
             )
 
-            AnimatedCallControls(
+            EnhancedCallControls(
                 state = state,
                 callbacks = callbacks
             )
         }
     }
 
-    // Save contact dialog
-    SaveContactDialog(
-        phoneNumber = state.callState.phoneNumber,
-        isVisible = showSaveContactDialog,
-        onSave = { contactName ->
-            onSaveContact?.invoke(contactName, state.callState.phoneNumber)
-        },
-        onDismiss = {
-            showSaveContactDialog = false
-            // Reset any internal dialog state if needed
-        }
-    )
+    if (showSaveContactDialog) {
+        SaveContactDialog(
+            phoneNumber = state.callState.phoneNumber,
+            isVisible = showSaveContactDialog,
+            onSave = { contactName ->
+                onSaveContact?.invoke(contactName, state.callState.phoneNumber)
+            },
+            onDismiss = {
+                showSaveContactDialog = false
+            }
+        )
+    }
 }
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
-private fun AnimatedCallInfo(
+private fun EnhancedCallInfo(
     callState: io.voxity.dialer.domain.models.CallState,
     callDuration: Long,
     onSaveContact: (() -> Unit)? = null
 ) {
-    AnimatedContent(
-        targetState = callState,
-        transitionSpec = {
-            fadeIn(animationSpec = tween(300)) with fadeOut(animationSpec = tween(300))
-        }
-    ) { state ->
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(top = 64.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(top = 48.dp)
+    ) {
+        val infiniteTransition = rememberInfiniteTransition()
+        val pulseScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = if (callState.isRinging && callState.isIncoming) 1.08f else 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1500, easing = EaseInOutCubic),
+                repeatMode = RepeatMode.Reverse
+            )
+        )
+
+        val glowAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.3f,
+            targetValue = if (callState.isRinging && callState.isIncoming) 0.7f else 0.3f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2000, easing = EaseInOutCubic),
+                repeatMode = RepeatMode.Reverse
+            )
+        )
+
+        Box(
+            contentAlignment = Alignment.Center
         ) {
-            val infiniteTransition = rememberInfiniteTransition()
-            val pulseScale by infiniteTransition.animateFloat(
-                initialValue = 1f,
-                targetValue = if (state.isRinging && state.isIncoming) 1.1f else 1f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1000),
-                    repeatMode = RepeatMode.Reverse
-                )
+            // Glow background
+            Box(
+                modifier = Modifier
+                    .size(140.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(alpha = glowAlpha),
+                        CircleShape
+                    )
+                    .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
             )
 
+            // Main avatar
             Box(
                 modifier = Modifier
                     .size(120.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                            )
+                        ),
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = state.contactName.firstOrNull()?.toString()?.uppercase()
-                        ?: state.phoneNumber.firstOrNull()?.toString() ?: "?",
+                    text = callState.contactName.firstOrNull()?.toString()?.uppercase()
+                        ?: callState.phoneNumber.firstOrNull()?.toString() ?: "?",
                     fontSize = 48.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = state.contactName.ifEmpty { state.phoneNumber },
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Color.White
-                )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = callState.contactName.ifEmpty { callState.phoneNumber },
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color.White,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
 
-                if (onSaveContact != null &&
-                    (state.contactName.isEmpty() || state.contactName == state.phoneNumber) &&
-                    state.phoneNumber.isNotEmpty()) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        onClick = onSaveContact,
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                        modifier = Modifier.size(40.dp)
-                    ) {
+            if (onSaveContact != null &&
+                (callState.contactName.isEmpty() || callState.contactName == callState.phoneNumber) &&
+                callState.phoneNumber.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Surface(
+                    onClick = onSaveContact,
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
                             Icons.Default.PersonAdd,
                             contentDescription = "Save Contact",
@@ -169,40 +207,50 @@ private fun AnimatedCallInfo(
                     }
                 }
             }
+        }
 
-            if (state.contactName.isNotEmpty() && state.contactName != state.phoneNumber) {
-                Text(
-                    text = state.phoneNumber,
-                    fontSize = 16.sp,
-                    color = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
+        // Phone number (if different from contact name)
+        if (callState.contactName.isNotEmpty() && callState.contactName != callState.phoneNumber) {
             Text(
-                text = getCallStatusText(state, callDuration),
+                text = callState.phoneNumber,
                 fontSize = 16.sp,
-                color = Color.White.copy(alpha = 0.8f)
+                color = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Call status with better styling
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White.copy(alpha = 0.1f),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        ) {
+            Text(
+                text = getCallStatusText(callState, callDuration),
+                fontSize = 16.sp,
+                color = Color.White.copy(alpha = 0.9f),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
         }
     }
 }
 
 @Composable
-private fun AnimatedCallControls(
+private fun EnhancedCallControls(
     state: ActiveCallScreenState,
     callbacks: ActiveCallScreenCallbacks
 ) {
     when {
         state.callState.isConnecting -> {
-            CircularCallButton(
+            EnhancedCircularButton(
                 icon = Icons.Default.CallEnd,
                 backgroundColor = CallColors.callRed,
                 onClick = callbacks::onEndCall,
                 contentDescription = "End call",
-                modifier = Modifier.size(80.dp)
+                size = 80.dp
             )
         }
 
@@ -214,7 +262,7 @@ private fun AnimatedCallControls(
         }
 
         state.callState.isActive || state.callState.isOnHold -> {
-            ActiveCallControls(
+            EnhancedActiveCallControls(
                 state = state,
                 callbacks = callbacks
             )
@@ -223,7 +271,7 @@ private fun AnimatedCallControls(
 }
 
 @Composable
-private fun ActiveCallControls(
+private fun EnhancedActiveCallControls(
     state: ActiveCallScreenState,
     callbacks: ActiveCallScreenCallbacks
 ) {
@@ -234,16 +282,18 @@ private fun ActiveCallControls(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            CircularCallButton(
+            EnhancedCircularButton(
                 icon = if (state.callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                backgroundColor = if (state.callState.isMuted) CallColors.callRed else MaterialTheme.colorScheme.surfaceVariant,
+                backgroundColor = if (state.callState.isMuted) CallColors.callRed else Color.White.copy(alpha = 0.15f),
+                iconTint = if (state.callState.isMuted) Color.White else Color.White.copy(alpha = 0.9f),
                 onClick = { callbacks.onMuteCall(!state.callState.isMuted) },
                 contentDescription = if (state.callState.isMuted) "Unmute" else "Mute"
             )
 
-            CircularCallButton(
+            EnhancedCircularButton(
                 icon = if (state.callState.isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                backgroundColor = Color.White.copy(alpha = 0.15f),
+                iconTint = Color.White.copy(alpha = 0.9f),
                 onClick = {
                     if (state.callState.isOnHold) {
                         callbacks.onUnholdCall()
@@ -254,31 +304,58 @@ private fun ActiveCallControls(
                 contentDescription = if (state.callState.isOnHold) "Unhold" else "Hold"
             )
 
-            CircularCallButton(
+            EnhancedCircularButton(
                 icon = Icons.Default.VolumeUp,
-                backgroundColor = MaterialTheme.colorScheme.surfaceVariant,
+                backgroundColor = Color.White.copy(alpha = 0.15f),
+                iconTint = Color.White.copy(alpha = 0.9f),
                 onClick = { showAudioSelector = true },
                 contentDescription = "Audio options"
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(40.dp))
 
-        CircularCallButton(
+        EnhancedCircularButton(
             icon = Icons.Default.CallEnd,
             backgroundColor = CallColors.callRed,
             onClick = callbacks::onEndCall,
             contentDescription = "End call",
-            modifier = Modifier.size(80.dp)
+            size = 80.dp
         )
     }
 
-    // Add audio selector dialog
     if (showAudioSelector) {
         PlatformAudioRouteSelector(
             onDismiss = { showAudioSelector = false },
             onRouteSelected = { showAudioSelector = false }
         )
+    }
+}
+
+@Composable
+private fun EnhancedCircularButton(
+    icon: ImageVector,
+    backgroundColor: Color,
+    onClick: () -> Unit,
+    contentDescription: String,
+    size: Dp = 60.dp,
+    iconTint: Color = Color.White
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(size),
+        shape = CircleShape,
+        color = backgroundColor,
+        shadowElevation = 8.dp
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = iconTint,
+                modifier = Modifier.size(size * 0.4f)
+            )
+        }
     }
 }
 

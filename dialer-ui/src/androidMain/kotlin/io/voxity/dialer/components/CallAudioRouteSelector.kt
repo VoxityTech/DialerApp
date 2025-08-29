@@ -1,10 +1,17 @@
 package io.voxity.dialer.components
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,46 +45,76 @@ fun CallAudioRouteSelector(
 ) {
     val context = LocalContext.current
     val audioRouteManager = remember { AudioRouteManager(context) }
-    var availableRoutes by remember { mutableStateOf(audioRouteManager.getAvailableRoutes()) }
-    var currentRoute by remember { mutableStateOf(audioRouteManager.getCurrentRoute()) }
 
+    val availableRoutes by audioRouteManager.availableRoutes.collectAsState()
+    val currentRoute by audioRouteManager.currentRoute.collectAsState()
+
+    // Refresh routes when the selector is shown
     LaunchedEffect(Unit) {
-        availableRoutes = audioRouteManager.getAvailableRoutes()
-        currentRoute = audioRouteManager.getCurrentRoute()
+        audioRouteManager.refreshRoutesForCall()
     }
+
+    // Calculate maximum height based on screen size
+    val configuration = LocalConfiguration.current
+    val maxHeight = configuration.screenHeightDp.dp * 0.7f
 
     AnimatedVisibility(
         visible = true,
-        enter = fadeIn() + slideInVertically { it },
-        exit = fadeOut() + slideOutVertically { it }
+        enter = fadeIn(tween(200)) + slideInVertically(tween(300)) { it },
+        exit = fadeOut(tween(200)) + slideOutVertically(tween(300)) { it }
     ) {
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.7f))
-                .clickable { onDismiss() },
-            contentAlignment = Alignment.BottomCenter
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable { onDismiss() }
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            contentAlignment = Alignment.Center
         ) {
             Card(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .widthIn(max = 400.dp)
+                    .heightIn(max = maxHeight)
                     .padding(16.dp)
                     .clickable(enabled = false) { },
-                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
             ) {
-                Column(
+                // Use LazyColumn instead of Column with verticalScroll
+                LazyColumn(
                     modifier = Modifier.padding(24.dp)
                 ) {
-                    Text(
-                        text = "Audio Output",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Audio Output",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
 
-                    availableRoutes.forEach { route ->
+                            IconButton(onClick = onDismiss) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    items(availableRoutes) { route ->
                         AudioRouteItem(
                             route = route,
                             isSelected = route == currentRoute,
@@ -86,15 +124,10 @@ fun CallAudioRouteSelector(
                                 onDismiss()
                             }
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    TextButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Cancel")
+                        if (route != availableRoutes.last()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
             }
@@ -108,38 +141,88 @@ private fun AudioRouteItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
-    Row(
+    val animatedBackgroundColor by animateColorAsState(
+        targetValue = if (isSelected)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        else
+            Color.Transparent,
+        animationSpec = tween(200),
+        label = "background_color"
+    )
+
+    val animatedBorderColor by animateColorAsState(
+        targetValue = if (isSelected)
+            MaterialTheme.colorScheme.primary
+        else
+            Color.Transparent,
+        animationSpec = tween(200),
+        label = "border_color"
+    )
+
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
             .clickable { onClick() }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .border(
+                width = 1.dp,
+                color = animatedBorderColor,
+                shape = RoundedCornerShape(16.dp)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        color = animatedBackgroundColor
     ) {
-        Icon(
-            imageVector = route.icon,
-            contentDescription = route.displayName,
-            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp)
-        )
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        if (isSelected)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = route.icon,
+                    contentDescription = route.displayName,
+                    tint = if (isSelected)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-        Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(16.dp))
 
-        Text(
-            text = route.displayName,
-            fontSize = 16.sp,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.weight(1f)
-        )
-
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Selected",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp)
+            Text(
+                text = route.displayName,
+                style = MaterialTheme.typography.bodyLarge,
+                color = if (isSelected)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.onSurface,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                modifier = Modifier.weight(1f)
             )
+
+            AnimatedVisibility(
+                visible = isSelected,
+                enter = scaleIn(tween(200)) + fadeIn(tween(200)),
+                exit = scaleOut(tween(200)) + fadeOut(tween(200))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Selected",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

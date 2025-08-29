@@ -23,6 +23,9 @@ import androidx.compose.ui.unit.sp
 import io.voxity.dialer.components.DialerKeypad
 import kotlin.math.roundToInt
 
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.style.TextAlign
+
 @Composable
 fun DialerModalSheet(
     isVisible: Boolean,
@@ -42,24 +45,10 @@ fun DialerModalSheet(
         animationSpec = spring(dampingRatio = 0.8f),
         finishedListener = {
             if (!isVisible && it >= 1000f) {
-                // Animation completed, reset state
                 offsetY = 0f
             }
         }
     )
-
-    LaunchedEffect(isVisible) {
-        if (!isVisible) {
-            // Animate slide down
-            animate(
-                initialValue = offsetY,
-                targetValue = 1000f,
-                animationSpec = spring(dampingRatio = 0.8f)
-            ) { value, _ ->
-                offsetY = value
-            }
-        }
-    }
 
     if (isVisible) {
         Box(
@@ -126,16 +115,34 @@ fun DialerModalSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (phoneNumber.isEmpty()) "Enter phone number" else phoneNumber,
-                                fontSize = if (phoneNumber.isEmpty()) 16.sp else 20.sp,
-                                fontWeight = if (phoneNumber.isEmpty()) FontWeight.Normal else FontWeight.Medium,
-                                fontFamily = if (phoneNumber.isEmpty()) FontFamily.Default else FontFamily.Monospace,
-                                color = if (phoneNumber.isEmpty())
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                else
-                                    MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
+                            // Copy–paste enabled text field
+                            BasicTextField(
+                                value = phoneNumber,
+                                onValueChange = { phoneNumber = it },
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                                    fontSize = if (phoneNumber.isEmpty()) 16.sp else 20.sp,
+                                    fontWeight = if (phoneNumber.isEmpty()) FontWeight.Normal else FontWeight.Medium,
+                                    fontFamily = if (phoneNumber.isEmpty()) FontFamily.Default else FontFamily.Monospace,
+                                    color = if (phoneNumber.isEmpty())
+                                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    else
+                                        MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Start
+                                ),
+                                singleLine = true,
+                                decorationBox = { innerTextField ->
+                                    if (phoneNumber.isEmpty()) {
+                                        Text(
+                                            "Enter phone number",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                    innerTextField()
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp)
                             )
 
                             if (phoneNumber.isNotEmpty()) {
@@ -159,13 +166,9 @@ fun DialerModalSheet(
 
                     Column {
                         DialerKeypad(
-                            onNumberClick = { number ->
-                                phoneNumber += number
-                            },
+                            onNumberClick = { number -> phoneNumber += number },
                             onCallClick = {
-                                if (phoneNumber.isNotEmpty()) {
-                                    onCall(phoneNumber)
-                                }
+                                if (phoneNumber.isNotEmpty()) onCall(phoneNumber)
                             }
                         )
 

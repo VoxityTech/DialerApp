@@ -34,6 +34,10 @@ class AudioRouteManager(private val context: Context) {
         initBluetoothProfile()
     }
 
+    fun refreshRoutesForCall() {
+        updateAvailableRoutes()
+    }
+
     private fun initBluetoothProfile() {
         try {
             val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
@@ -66,11 +70,15 @@ class AudioRouteManager(private val context: Context) {
     }
 
     fun getCurrentRoute(): AudioRoute {
-        return when {
-            audioManager.isSpeakerphoneOn -> AudioRoute.SPEAKER
-            isBluetoothScoConnected() -> AudioRoute.BLUETOOTH
-            isWiredHeadsetConnected() -> AudioRoute.WIRED_HEADSET
-            else -> AudioRoute.EARPIECE
+        return try {
+            when {
+                audioManager.isSpeakerphoneOn -> AudioRoute.SPEAKER
+                isBluetoothScoConnected() -> AudioRoute.BLUETOOTH
+                isWiredHeadsetConnected() -> AudioRoute.WIRED_HEADSET
+                else -> AudioRoute.EARPIECE
+            }
+        } catch (e: Exception) {
+            AudioRoute.EARPIECE // Fallback to earpiece
         }
     }
 
@@ -123,7 +131,10 @@ class AudioRouteManager(private val context: Context) {
         }
 
         _availableRoutes.value = routes
-        _currentRoute.value = getCurrentRoute()
+        val detectedRoute = getCurrentRoute()
+        if (_currentRoute.value != detectedRoute) {
+            _currentRoute.value = detectedRoute
+        }
     }
 
     private fun isBluetoothAvailable(): Boolean {
@@ -133,10 +144,12 @@ class AudioRouteManager(private val context: Context) {
                 return false
             }
 
+            // Check if any Bluetooth device is connected for audio
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                @Suppress("MissingPermission")
                 bluetoothHeadset?.connectedDevices?.isNotEmpty() == true
             } else {
-                @Suppress("MissingPermission")
+                @Suppress("MissingPermission", "DEPRECATION")
                 bluetoothHeadset?.connectedDevices?.isNotEmpty() == true
             }
         } catch (e: SecurityException) {
@@ -147,10 +160,14 @@ class AudioRouteManager(private val context: Context) {
     }
 
     private fun isBluetoothScoConnected(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            audioManager.isBluetoothScoOn || isBluetoothAudioConnected()
-        } else {
-            audioManager.isBluetoothScoOn
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                audioManager.isBluetoothScoOn || isBluetoothAudioConnected()
+            } else {
+                audioManager.isBluetoothScoOn
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 

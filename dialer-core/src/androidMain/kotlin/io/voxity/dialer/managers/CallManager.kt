@@ -46,6 +46,21 @@ class CallManager(
         }
     )
 
+    private var currentMuteState = false
+
+    init {
+        // Sync initial mute state
+        audioManager.syncMuteState()
+
+        // Observe mute state changes
+        managerScope.launch {
+            audioManager.isMuted.collect { isMuted ->
+                currentMuteState = isMuted
+                updateCurrentCallState()
+            }
+        }
+    }
+
     private val _activeCalls = MutableStateFlow<List<Call>>(emptyList())
     val activeCalls: StateFlow<List<Call>> = _activeCalls.asStateFlow()
 
@@ -268,7 +283,6 @@ class CallManager(
             val phoneNumber = details.handle?.schemeSpecificPart ?: _currentCallState.value.phoneNumber
             val contactName = details.contactDisplayName ?: ""
 
-            // Around line 165, fix the mute state handling
             val callState = CallState(
                 isActive = activeCall.state == Call.STATE_ACTIVE,
                 phoneNumber = phoneNumber,
@@ -277,7 +291,7 @@ class CallManager(
                 isRinging = activeCall.state == Call.STATE_RINGING,
                 isOnHold = activeCall.state == Call.STATE_HOLDING,
                 isConnecting = activeCall.state == Call.STATE_CONNECTING || activeCall.state == Call.STATE_DIALING,
-                isMuted = audioManager.getCurrentMuteState(), // Get actual state from hardware
+                isMuted = currentMuteState,
                 callStartTime = if (activeCall.state == Call.STATE_ACTIVE && _currentCallState.value.callStartTime == null) {
                     Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 } else _currentCallState.value.callStartTime

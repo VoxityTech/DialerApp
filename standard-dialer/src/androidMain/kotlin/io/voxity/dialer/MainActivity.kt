@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
     private fun initializeDependencies() {
         proximitySensorManager = get()
         callAudioManager = get()
+        callAudioManager.syncMuteState()
         callManager = get()
 
         volumeKeyHandler = VolumeKeyHandler(

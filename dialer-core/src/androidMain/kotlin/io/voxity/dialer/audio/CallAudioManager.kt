@@ -56,20 +56,34 @@ class CallAudioManager(private val context: Context) : AudioController {
         }
     }
 
+    // Modify the setMute method to ensure proper state sync
     override suspend fun setMute(muted: Boolean): CallResult = withContext(Dispatchers.Main) {
         try {
-            // Only set microphone mute, don't touch stream volume for mute operations
+            // Set both the system mute state and our internal state
             audioManager.isMicrophoneMute = muted
             _isMuted.value = muted
+
+            // Verify the state was set correctly
+            val actualState = audioManager.isMicrophoneMute
+            if (actualState != muted) {
+                _isMuted.value = actualState // Sync with actual state
+            }
+
             CallResult.Success
         } catch (e: Exception) {
+            // If setting failed, sync our state with system state
+            _isMuted.value = audioManager.isMicrophoneMute
             CallResult.Error("Failed to set mute state", e)
         }
     }
 
-    // Add this function to sync initial state
+    // Also update syncMuteState to be more robust
     fun syncMuteState() {
-        _isMuted.value = audioManager.isMicrophoneMute
+        try {
+            _isMuted.value = audioManager.isMicrophoneMute
+        } catch (e: Exception) {
+            android.util.Log.e("CallAudioManager", "Failed to sync mute state", e)
+        }
     }
 
     override suspend fun toggleMute(): CallResult {
