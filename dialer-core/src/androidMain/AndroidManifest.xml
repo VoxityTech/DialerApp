@@ -45,6 +45,12 @@
                 android:name="android.telecom.IN_CALL_SERVICE_RINGING"
                 android:value="true" />
 
+            <!-- Optional: Apps using this library can specify their in-call activity -->
+            <!-- Example: android:value="com.myapp.InCallActivity" -->
+            <meta-data
+                android:name="dialer.INCALL_ACTIVITY"
+                android:value="" />
+
             <intent-filter android:priority="1000">
                 <action android:name="android.telecom.InCallService" />
             </intent-filter>

@@ -7,7 +7,7 @@ data class DialerConfig(
     val enableRingtone: Boolean = true,
     val customRingtoneUri: String? = null,
     val autoSilenceTimeout: Long = 30_000, // 30 seconds
-    val maxCallDuration: Long = 3600_000, // 1 hour
+    val maxCallDuration: Long = 6200_000, // 2 hours
     val enableProximitySensor: Boolean = true,
     val enableAudioFocus: Boolean = true
 )

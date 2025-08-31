@@ -1,6 +1,8 @@
 package io.voxity.dialer.services
 
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.telecom.Call
 import android.telecom.InCallService
 import android.util.Log
@@ -68,9 +70,47 @@ class DialerInCallService : InCallService(), KoinComponent {
     private fun launchInCallUI(call: Call) {
         Log.d(TAG, "Launching in-call UI")
 
-        // Get the main activity class name from package
+        // Get the app's package name that's using this service
+        val appPackageName = try {
+            // Get the package name from the application context
+            applicationContext.packageName
+        } catch (e: Exception) {
+            packageName
+        }
+
+        val activityClassName = try {
+            val serviceInfo = packageManager.getServiceInfo(
+                ComponentName(this, DialerInCallService::class.java),
+                PackageManager.GET_META_DATA
+            )
+            serviceInfo.metaData?.getString("dialer.INCALL_ACTIVITY")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to read metadata", e)
+            null
+        }
+
+        if (activityClassName.isNullOrBlank()) {
+            Log.d(TAG, "No specific activity configured, broadcasting intent")
+
+            // Send broadcast to the app's package specifically
+            val broadcastIntent = Intent("io.voxity.dialer.INCOMING_CALL").apply {
+                putExtra("incoming_call", true)
+                putExtra("call_handle", call.details.handle?.schemeSpecificPart)
+                putExtra("caller_name", call.details.contactDisplayName)
+                setPackage(appPackageName) // Target the specific app package
+            }
+            sendBroadcast(broadcastIntent)
+
+            // Fallback notification
+            val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
+            val callerName = call.details.contactDisplayName ?: phoneNumber
+            notificationManager.showIncomingCallNotification(callerName, phoneNumber)
+            return
+        }
+
+        // Launch the specific activity using the app's package name
         val intent = Intent().apply {
-            setClassName(packageName, "io.voxity.dialer.MainActivity")
+            setClassName(appPackageName, activityClassName) // Use app's package name
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
                     Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
@@ -81,8 +121,8 @@ class DialerInCallService : InCallService(), KoinComponent {
         try {
             startActivity(intent)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to launch UI", e)
-            // Fallback to notification if activity launch fails
+            Log.e(TAG, "Failed to launch UI activity: $activityClassName", e)
+            // Fallback to notification
             val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
             val callerName = call.details.contactDisplayName ?: phoneNumber
             notificationManager.showIncomingCallNotification(callerName, phoneNumber)

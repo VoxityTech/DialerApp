@@ -2,15 +2,12 @@ package io.voxity.dialer
 
 import android.content.Context
 import io.voxity.dialer.core.DialerCore
-import io.voxity.dialer.di.androidModule
+import io.voxity.dialer.di.androidCoreModule
 import io.voxity.dialer.di.commonModule
 import io.voxity.dialer.domain.models.DialerConfig
 import io.voxity.dialer.domain.models.CallResult
-import org.koin.android.ext.koin.androidContext
-import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
 import org.koin.core.module.Module
-import org.koin.dsl.module
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -71,16 +68,6 @@ class AndroidDialerCore private constructor() : DialerCore {
 object DialerCoreManager {
     fun initialize(context: Context, config: DialerConfig = DialerConfig()): CallResult {
         return try {
-            val contextModule = module {
-                single<Context> { context.applicationContext }
-                single<DialerConfig> { config }
-            }
-
-            startKoin {
-                androidContext(context)
-                modules(listOf(contextModule, commonModule) + platformModules)
-            }
-
             initializeDialerCore(context)
             CallResult.Success
         } catch (e: Exception) {
@@ -89,12 +76,13 @@ object DialerCoreManager {
     }
 
     val coreModules: List<Module> get() = listOf(
-        commonModule
-    ) + platformModules
+        commonModule,
+        androidCoreModule
+    )
 }
 
 actual fun initializeDialerCore(context: Any) {
     require(context is Context) { "Expected Android Context" }
 }
 
-actual val platformModules: List<Module> = listOf(androidModule)
+actual val dialerAndroidModules: List<Module> = listOf(androidCoreModule)

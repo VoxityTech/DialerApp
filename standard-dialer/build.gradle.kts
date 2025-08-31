@@ -54,6 +54,26 @@ android {
     namespace = "io.voxity.dialer"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(project.properties["RELEASE_STORE_FILE"] as String)
+            storePassword = project.properties["RELEASE_STORE_PASSWORD"] as String
+            keyAlias = project.properties["RELEASE_KEY_ALIAS"] as String
+            keyPassword = project.properties["RELEASE_KEY_PASSWORD"] as String
+        }
+    }
+
+    buildTypes {
+        release {
+            isDebuggable = false
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+    }
+
     defaultConfig {
         applicationId = "io.voxity.dialer"
         minSdk = 30
@@ -71,5 +91,4 @@ android {
 dependencies {
     implementation(project(":dialer-core"))
     implementation(project(":dialer-ui"))
-    debugImplementation(compose.uiTooling)
 }

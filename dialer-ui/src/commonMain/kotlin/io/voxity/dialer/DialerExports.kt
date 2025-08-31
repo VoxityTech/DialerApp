@@ -1,7 +1,45 @@
 package io.voxity.dialer
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import io.voxity.dialer.ui.navigation.NavigationItem
+import io.voxity.dialer.ui.navigation.NavigationRegistry
+
+fun registerDialerScreens() {
+    NavigationRegistry.register(
+        NavigationItem(
+            id = "contacts",
+            label = "Contacts",
+            icon = Icons.Default.Person,
+            contentDescription = "View contacts"
+        ) { modifier ->
+            DialerScreens.Contacts(
+                state = DialerState.contacts(),
+                callbacks = DialerCallbacks.contacts(),
+                modifier = modifier
+            )
+        }
+    )
+
+    NavigationRegistry.register(
+        NavigationItem(
+            id = "call_history",
+            label = "History",
+            icon = Icons.Default.History,
+            contentDescription = "View call history"
+        ) { modifier ->
+            DialerScreens.CallHistory(
+                state = DialerState.callHistory(),
+                callbacks = DialerCallbacks.callHistory(),
+                modifier = modifier
+            )
+        }
+    )
+
+}
 
 // Simple object with @Composable functions - no val assignments
 object DialerScreens {

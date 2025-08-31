@@ -3,6 +3,7 @@ package io.voxity.dialer.ui.state
 import io.voxity.dialer.domain.models.CallHistoryItem
 import io.voxity.dialer.domain.models.CallState
 import io.voxity.dialer.domain.models.Contact
+import io.voxity.dialer.ui.navigation.NavigationItem
 
 // Pure state data classes - no business logic
 data class ContactsScreenState(
@@ -31,8 +32,11 @@ data class ActiveCallScreenState(
 // Navigation state
 data class DialerNavigationState(
     val selectedTab: Any = DefaultScreens.CallHistory,
+    val showHistory: Boolean = true,
+    val showContacts: Boolean = true,
     val showDialerModal: Boolean = false,
-    val isDefaultDialer: Boolean = false
+    val isDefaultDialer: Boolean = false,
+    val additionalScreens: List<NavigationItem> = emptyList()
 )
 
 // Default screen identifiers

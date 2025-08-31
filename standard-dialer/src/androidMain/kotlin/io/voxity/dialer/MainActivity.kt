@@ -16,19 +16,21 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
+
 import androidx.core.content.ContextCompat
 import io.voxity.dialer.audio.CallAudioManager
 import io.voxity.dialer.audio.VolumeKeyHandler
 import io.voxity.dialer.domain.models.CallResult
 import io.voxity.dialer.domain.models.CallState
-// import io.voxity.dialer.domain.models.Contact // Not directly used in this file after recent changes
 import io.voxity.dialer.domain.usecases.CallUseCases
-import io.voxity.dialer.managers.CallManager // Assuming this is the concrete class for CallRepository
+import io.voxity.dialer.managers.CallManager
 import io.voxity.dialer.sensors.ProximitySensorManager
 import io.voxity.dialer.ui.callbacks.DialerNavigationCallbacks
-// Import specific screen state if DialerState.keypad() returns it, or the general one
-import io.voxity.dialer.ui.state.DialerScreenState
+import io.voxity.dialer.ui.navigation.NavigationItem
 import io.voxity.dialer.ui.state.DialerNavigationState
 import io.voxity.dialer.ui.theme.DialerTheme
 import kotlinx.coroutines.*
@@ -84,14 +86,37 @@ class MainActivity : ComponentActivity() {
         initializeDependencies()
 
         val isDefaultDialer = isDefaultDialerApp()
-        navigationState = DialerNavigationState(isDefaultDialer = isDefaultDialer)
+        navigationState = DialerNavigationState(
+            isDefaultDialer = isDefaultDialer,
+            showHistory = true,
+            showContacts = true
+        )
         dialerState = DialerState.keypad(canMakeCall = isDefaultDialer)
 
         handleDialIntent(intent)
 
+        val additionalNavigationItems = listOf(
+            NavigationItem(
+                id = "dummy_screen_1",
+                label = "Paris",
+                icon = Icons.Default.LocationOn,
+                contentDescription = "Dummy Screen 1"
+            ) { modifier ->
+                DummyScreen1()
+            },
+            NavigationItem(
+                id = "dummy_screen_2",
+                label = "Gentleman",
+                icon = Icons.Default.Settings,
+                contentDescription = "Dummy Screen 2"
+            ) { modifier ->
+                DummyScreen2()
+            }
+        )
+
         setContent {
             DialerTheme {
-                DialerUI(
+                DialerMainUI(
                     navigationState = navigationState,
                     contactsState = contactsState,
                     callHistoryState = callHistoryState,
@@ -101,7 +126,8 @@ class MainActivity : ComponentActivity() {
                     contactsCallbacks = createContactsCallbacks(),
                     callHistoryCallbacks = createCallHistoryCallbacks(),
                     activeCallCallbacks = createActiveCallCallbacks(),
-                    dialerCallbacks = createDialerCallbacks()
+                    dialerCallbacks = createDialerCallbacks(),
+                    additionalNavigationItems = additionalNavigationItems
                 )
             }
         }

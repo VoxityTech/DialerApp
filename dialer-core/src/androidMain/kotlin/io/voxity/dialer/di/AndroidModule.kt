@@ -22,7 +22,7 @@ import io.voxity.dialer.platform.PhoneCaller
 import io.voxity.dialer.sensors.ProximitySensorManager
 import kotlinx.coroutines.launch
 
-val androidModule = module {
+val androidCoreModule = module {
 
     single {
         DialerConfig(

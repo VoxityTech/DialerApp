@@ -1,4 +1,4 @@
-package io.voxity.dialer
+package io.voxity.dialer.presentation
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -8,7 +8,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import io.voxity.dialer.presentation.*
 import io.voxity.dialer.presentation.components.DialerModalSheet
 import io.voxity.dialer.ui.state.*
 import io.voxity.dialer.ui.callbacks.*
@@ -17,15 +16,13 @@ import io.voxity.dialer.ui.navigation.NavigationScreenRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DialerUI(
-    // State parameters
+fun DialerMainUI(
     navigationState: DialerNavigationState,
     contactsState: ContactsScreenState = ContactsScreenState(),
     callHistoryState: CallHistoryScreenState = CallHistoryScreenState(),
     activeCallState: ActiveCallScreenState = ActiveCallScreenState(),
-    dialerState: DialerScreenState = DialerScreenState(), // <-- ADDED THIS PARAMETER
+    dialerState: DialerScreenState = DialerScreenState(),
 
-    // Callback parameters
     navigationCallbacks: DialerNavigationCallbacks,
     contactsCallbacks: ContactsScreenCallbacks = object : ContactsScreenCallbacks {
         override fun onContactSelected(contact: io.voxity.dialer.domain.models.Contact) {}
@@ -54,10 +51,8 @@ fun DialerUI(
         override fun onClearNumber() {}
     },
 
-    // Configuration parameters
     additionalNavigationItems: List<NavigationItem> = emptyList(),
     customScreenRenderer: NavigationScreenRenderer? = null,
-
     modifier: Modifier = Modifier
 ) {
     val showInCallScreen = activeCallState.callState.isActive ||
@@ -65,17 +60,15 @@ fun DialerUI(
             activeCallState.callState.isConnecting ||
             activeCallState.callState.isOnHold
 
-    val defaultNavigationItems = listOf(
-        NavigationItem(DefaultScreens.CallHistory, "History", Icons.Default.History, "History"),
-        NavigationItem(DefaultScreens.Contacts, "Contacts", Icons.Default.Contacts, "Contacts")
+    val defaultNavigationItems = listOfNotNull(
+        if (navigationState.showHistory) NavigationItem(DefaultScreens.CallHistory, "History", Icons.Default.History, "History") else null,
+        if (navigationState.showContacts) NavigationItem(DefaultScreens.Contacts, "Contacts", Icons.Default.Contacts, "Contacts") else null
     )
 
     val allNavigationItems = defaultNavigationItems + additionalNavigationItems
 
-    // Add this LaunchedEffect in DialerUI
     LaunchedEffect(navigationState.selectedTab) {
         if (navigationState.showDialerModal) {
-            // Auto-hide modal when switching tabs
             navigationCallbacks.onHideDialerModal()
         }
     }
@@ -141,13 +134,15 @@ fun DialerUI(
                     )
 
                     else -> {
-                        // Render custom screens via provided renderer
-                        customScreenRenderer?.RenderScreen(
-                            screenId = navigationState.selectedTab,
-                            modifier = Modifier.fillMaxSize()
-                        ) ?: run {
-                            // Fallback for unknown screens
-                            Box(
+                        val currentScreen = allNavigationItems.find { it.id == navigationState.selectedTab }
+
+                        if (currentScreen != null) {
+                            currentScreen.render(Modifier.fillMaxSize())
+                        } else {
+                            customScreenRenderer?.RenderScreen(
+                                screenId = navigationState.selectedTab,
+                                modifier = Modifier.fillMaxSize()
+                            ) ?: Box(
                                 modifier = Modifier.fillMaxSize(),
                                 contentAlignment = Alignment.Center
                             ) {

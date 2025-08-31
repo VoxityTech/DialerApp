@@ -23,7 +23,7 @@ actual class PhoneCaller(private val context: Context) {
                 val uri = Uri.fromParts("tel", phoneNumber, null)
                 val extras = Bundle().apply {
                     putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
-                    putBoolean("FROM_DIALER_APP", true)
+                    putBoolean("FROM_DIALER_APP", true)  // Add this flag
                 }
 
                 telecomManager.placeCall(uri, extras)
