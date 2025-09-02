@@ -34,6 +34,8 @@ interface ActiveCallScreenCallbacks {
     fun onMuteCall(muted: Boolean)
     fun onShowAudioSelector()
     fun onHideAudioSelector()
+    fun onAddCall()
+    fun onMergeCall()
 }
 
 interface DialerNavigationCallbacks {

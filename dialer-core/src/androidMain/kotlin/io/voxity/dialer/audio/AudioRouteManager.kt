@@ -11,13 +11,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-enum class AudioRoute(val displayName: String) {
-    SPEAKER("Speaker"),
-    EARPIECE("Earpiece"),
-    BLUETOOTH("Bluetooth"),
-    WIRED_HEADSET("Wired Headset")
-}
-
 class AudioRouteManager(private val context: Context) {
 
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -84,33 +77,83 @@ class AudioRouteManager(private val context: Context) {
 
     fun setAudioRoute(route: AudioRoute) {
         try {
+            // CRITICAL: Set mode BEFORE changing routes
+            if (audioManager.mode != AudioManager.MODE_IN_COMMUNICATION) {
+                audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            }
+
+            // Reset all routes first
+            audioManager.isSpeakerphoneOn = false
+            audioManager.isBluetoothScoOn = false
+            audioManager.stopBluetoothSco()
+
             when (route) {
                 AudioRoute.SPEAKER -> {
-                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+                    // Force speaker on
                     audioManager.isSpeakerphoneOn = true
-                    audioManager.isBluetoothScoOn = false
-                    audioManager.stopBluetoothSco()
+
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        audioManager.availableCommunicationDevices
+                            .find { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+                            ?.let { device ->
+                                audioManager.setCommunicationDevice(device)
+                            }
+                    }
                 }
                 AudioRoute.EARPIECE -> {
-                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                     audioManager.isSpeakerphoneOn = false
                     audioManager.isBluetoothScoOn = false
                     audioManager.stopBluetoothSco()
+                    // Force route to earpiece - handle nullable case
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        audioManager.availableCommunicationDevices
+                            .find { it.type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE }
+                            ?.let { device ->
+                                audioManager.setCommunicationDevice(device)
+                            }
+                    }
                 }
                 AudioRoute.BLUETOOTH -> {
-                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                     audioManager.isSpeakerphoneOn = false
                     audioManager.isBluetoothScoOn = true
                     audioManager.startBluetoothSco()
+                    // Handle Bluetooth device routing
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        audioManager.availableCommunicationDevices
+                            .find { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO }
+                            ?.let { device ->
+                                audioManager.setCommunicationDevice(device)
+                            }
+                    }
                 }
                 AudioRoute.WIRED_HEADSET -> {
-                    audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
                     audioManager.isSpeakerphoneOn = false
                     audioManager.isBluetoothScoOn = false
                     audioManager.stopBluetoothSco()
+                    // Handle wired headset routing
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        audioManager.availableCommunicationDevices
+                            .find {
+                                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                                        it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                                        it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+                            }
+                            ?.let { device ->
+                                audioManager.setCommunicationDevice(device)
+                            }
+                    }
                 }
             }
+
             _currentRoute.value = route
+
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                val actualRoute = getCurrentRoute()
+                if (_currentRoute.value != actualRoute) {
+                    _currentRoute.value = actualRoute
+                }
+            }, 100)
+
         } catch (e: Exception) {
             android.util.Log.e("AudioRouteManager", "Failed to set audio route", e)
         }

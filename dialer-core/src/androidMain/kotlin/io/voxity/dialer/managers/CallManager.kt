@@ -5,9 +5,12 @@ import android.os.Build
 import android.telecom.Call
 import android.telecom.Connection
 import android.util.Log
+import io.voxity.dialer.audio.AudioRouteManager
 import io.voxity.dialer.audio.CallAudioManager
+import io.voxity.dialer.audio.CallRecordingManager
 import io.voxity.dialer.audio.CallRingtoneManager
 import io.voxity.dialer.blocking.ContactBlockManager
+import io.voxity.dialer.conference.ConferenceManager
 import io.voxity.dialer.notifications.CallNotificationManager
 import io.voxity.dialer.domain.models.DialerConfig
 import io.voxity.dialer.domain.models.CallResult
@@ -19,6 +22,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import io.voxity.dialer.domain.models.CallState
 import io.voxity.dialer.domain.repository.CallRepository
+import io.voxity.dialer.sensors.ProximitySensorManager
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlin.time.Clock
@@ -61,6 +65,17 @@ class CallManager(
         }
     }
 
+    private val audioRouteManager = AudioRouteManager(context)
+
+    private val proximitySensorManager = ProximitySensorManager(context)
+
+    private val recordingManager = CallRecordingManager(context)
+
+    private val conferenceManager = ConferenceManager()
+
+    private var isRecording = false
+
+
     private val _activeCalls = MutableStateFlow<List<Call>>(emptyList())
     val activeCalls: StateFlow<List<Call>> = _activeCalls.asStateFlow()
 
@@ -91,10 +106,45 @@ class CallManager(
         }
     }
 
+    private val callStateCallback = object : Call.Callback() {
+        override fun onStateChanged(call: Call, state: Int) {
+            super.onStateChanged(call, state)
+
+            when (state) {
+                Call.STATE_DISCONNECTED -> {
+                    // Handle immediate disconnection
+                    managerScope.launch {
+                        handleCallDisconnected(call)
+                    }
+                }
+            }
+            updateCurrentCallState()
+        }
+    }
+
+    private suspend fun handleCallDisconnected(call: Call) {
+        try {
+            // Immediate cleanup when call disconnects
+            removeCall(call)
+            ringtoneManager.stopRinging()
+            notificationManager.cancelCallNotification()
+            audioManager.abandonAudioFocus()
+
+            // Reset call state immediately
+            _currentCallState.value = CallState()
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling call disconnection", e)
+        }
+    }
+
     fun addCall(call: Call) {
         val currentCalls = _activeCalls.value.toMutableList()
         currentCalls.add(call)
         _activeCalls.value = currentCalls
+
+        // Register our callback for immediate state changes
+        call.registerCallback(callStateCallback)
 
         if (call.details.callDirection == Call.Details.DIRECTION_INCOMING) {
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -105,7 +155,12 @@ class CallManager(
         updateCurrentCallState()
     }
 
+
+
+    // Modify removeCall to unregister callback
     fun removeCall(call: Call) {
+        call.unregisterCallback(callStateCallback)
+
         val currentCalls = _activeCalls.value.toMutableList()
         currentCalls.remove(call)
         _activeCalls.value = currentCalls
@@ -121,6 +176,53 @@ class CallManager(
         currentConnections.add(connection)
         _activeConnections.value = currentConnections
         updateConnectionState()
+    }
+
+    fun startRecording(): CallResult {
+        return try {
+            val phoneNumber = _currentCallState.value.phoneNumber
+            if (phoneNumber.isNotEmpty()) {
+                managerScope.launch {
+                    recordingManager.startRecording(phoneNumber)
+                }
+                isRecording = true
+                updateCurrentCallState()
+                CallResult.Success
+            } else {
+                CallResult.Error("No active call to record")
+            }
+        } catch (e: Exception) {
+            CallResult.Error("Failed to start recording", e)
+        }
+    }
+
+    fun stopRecording(): CallResult {
+        return try {
+            managerScope.launch {
+                recordingManager.stopRecording()
+            }
+            isRecording = false
+            updateCurrentCallState()
+            CallResult.Success
+        } catch (e: Exception) {
+            CallResult.Error("Failed to stop recording", e)
+        }
+    }
+
+    fun isCallRecording(): Boolean = isRecording
+
+    suspend fun mergeCall(): CallResult = withContext(Dispatchers.Main) {
+        try {
+            val calls = _activeCalls.value
+            if (calls.size >= 2) {
+                val success = conferenceManager.mergeCall(calls[0], calls[1])
+                if (success) CallResult.Success else CallResult.Error("Failed to merge calls")
+            } else {
+                CallResult.Error("Need at least 2 calls to merge")
+            }
+        } catch (e: Exception) {
+            CallResult.Error("Failed to merge calls", e)
+        }
     }
 
     fun updateConnectionState() {
@@ -296,26 +398,51 @@ class CallManager(
                     Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
                 } else _currentCallState.value.callStartTime
             )
-            _currentCallState.value = callState
 
-            // Use coroutine scope for async operations
+            conferenceManager.updateConferenceState(_activeCalls.value)
+
+            if (callState.isActive || callState.isConnecting) {
+                audioRouteManager.refreshRoutesForCall()
+            }
+
+            if (callState.isActive) {
+                proximitySensorManager.setCallActive(true)
+                proximitySensorManager.startListening()
+            } else {
+                proximitySensorManager.setCallActive(false)
+                proximitySensorManager.stopListening()
+            }
+
+            if (_currentCallState.value != callState) {
+                managerScope.launch {
+                    _currentCallState.emit(callState)
+                }
+            }
+
             if (callState.isActive && config.enableAudioFocus) {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                managerScope.launch {
                     audioManager.requestAudioFocus()
                 }
             } else if (!callState.isRinging && !callState.isOnHold && !callState.isConnecting) {
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                managerScope.launch {
                     audioManager.abandonAudioFocus()
                 }
             }
+
         } else {
             val currentState = _currentCallState.value
+            if (currentState != CallState()) {
+                managerScope.launch {
+                    _currentCallState.emit(CallState())
+                }
+            }
             if (!currentState.isConnecting) {
-                _currentCallState.value = CallState()
-                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                managerScope.launch {
+                    _currentCallState.emit(CallState())
                     audioManager.abandonAudioFocus()
                 }
             }
         }
     }
+
 }

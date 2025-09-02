@@ -89,7 +89,7 @@ object DialerScreens {
         initialPhoneNumber: String,
         modifier: Modifier = Modifier
     ) {
-        io.voxity.dialer.presentation.components.DialerModalSheet(isVisible, onDismiss, onCall, initialPhoneNumber,modifier)
+        io.voxity.dialer.components.DialerModalSheet(isVisible, onDismiss, onCall, initialPhoneNumber,modifier)
     }
 }
 
@@ -165,6 +165,8 @@ object DialerCallbacks {
         override fun onMuteCall(muted: Boolean) = onMuteCall(muted)
         override fun onShowAudioSelector() = onShowAudioSelector()
         override fun onHideAudioSelector() = onHideAudioSelector()
+        override fun onAddCall() = Unit
+        override fun onMergeCall() = Unit
     }
 
     fun keypad(

@@ -16,9 +16,6 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
 
 import androidx.core.content.ContextCompat
@@ -30,7 +27,6 @@ import io.voxity.dialer.domain.usecases.CallUseCases
 import io.voxity.dialer.managers.CallManager
 import io.voxity.dialer.sensors.ProximitySensorManager
 import io.voxity.dialer.ui.callbacks.DialerNavigationCallbacks
-import io.voxity.dialer.ui.navigation.NavigationItem
 import io.voxity.dialer.ui.state.DialerNavigationState
 import io.voxity.dialer.ui.theme.DialerTheme
 import kotlinx.coroutines.*
@@ -95,25 +91,6 @@ class MainActivity : ComponentActivity() {
 
         handleDialIntent(intent)
 
-        val additionalNavigationItems = listOf(
-            NavigationItem(
-                id = "dummy_screen_1",
-                label = "Paris",
-                icon = Icons.Default.LocationOn,
-                contentDescription = "Dummy Screen 1"
-            ) { modifier ->
-                DummyScreen1()
-            },
-            NavigationItem(
-                id = "dummy_screen_2",
-                label = "Gentleman",
-                icon = Icons.Default.Settings,
-                contentDescription = "Dummy Screen 2"
-            ) { modifier ->
-                DummyScreen2()
-            }
-        )
-
         setContent {
             DialerTheme {
                 DialerMainUI(
@@ -126,8 +103,7 @@ class MainActivity : ComponentActivity() {
                     contactsCallbacks = createContactsCallbacks(),
                     callHistoryCallbacks = createCallHistoryCallbacks(),
                     activeCallCallbacks = createActiveCallCallbacks(),
-                    dialerCallbacks = createDialerCallbacks(),
-                    additionalNavigationItems = additionalNavigationItems
+                    dialerCallbacks = createDialerCallbacks()
                 )
             }
         }
@@ -309,6 +285,16 @@ class MainActivity : ComponentActivity() {
         onSaveContact = { contactName, phoneNumber ->
             scope.launch {
                 try {
+                    // Check permission first
+                    if (ContextCompat.checkSelfPermission(
+                            this@MainActivity,
+                            Manifest.permission.WRITE_CONTACTS
+                        ) != PackageManager.PERMISSION_GRANTED) {
+                        // Request permission
+                        permissionLauncher.launch(arrayOf(Manifest.permission.WRITE_CONTACTS))
+                        return@launch
+                    }
+
                     val result = get<CallUseCases>().saveContact(contactName, phoneNumber)
                     when (result) {
                         is CallResult.Success -> {
@@ -316,11 +302,11 @@ class MainActivity : ComponentActivity() {
                             loadData() // Refresh contacts
                         }
                         is CallResult.Error -> {
-                            Toast.makeText(this@MainActivity, "Failed to save contact: ${result.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this@MainActivity, "Failed: ${result.message}", Toast.LENGTH_SHORT).show()
                         }
                     }
                 } catch (e: Exception) {
-                    Toast.makeText(this@MainActivity, "Error saving contact: ${e.message}", Toast.LENGTH_SHORT).show() 
+                    Toast.makeText(this@MainActivity, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -398,6 +384,29 @@ class MainActivity : ComponentActivity() {
             }
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onBackPressed() {
+        val callState = activeCallState.callState
+
+        when {
+            callState.isConnecting -> {
+                // Allow ending call during connection
+                scope.launch {
+                    get<CallUseCases>().endCall()
+                }
+            }
+            callState.isActive || callState.isRinging -> {
+                // Don't allow back, show toast
+                Toast.makeText(this, "Please end the call first", Toast.LENGTH_SHORT).show()
+            }
+            navigationState.showDialerModal -> {
+                navigationState = navigationState.copy(showDialerModal = false)
+            }
+            else -> {
+                super.onBackPressed()
+            }
+        }
     }
 
     @SuppressLint("RestrictedApi")

@@ -1,18 +1,23 @@
 package io.voxity.dialer.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import io.voxity.dialer.components.CallAudioRouteSelector
 
 @Composable
-actual fun PlatformAudioRouteSelector(
-    onDismiss: () -> Unit,
+actual fun PlatformAudioRouteWidgets(
     onRouteSelected: () -> Unit,
     modifier: Modifier
 ) {
-    CallAudioRouteSelector(
-        onDismiss = onDismiss,
-        onRouteSelected = { onRouteSelected() },
+    val routeHandler = remember {
+        { route: io.voxity.dialer.audio.AudioRoute ->
+            android.util.Log.d("AudioRoute", "Selected route: ${route.displayName}")
+            onRouteSelected()
+        }
+    }
+
+    AudioRouteWidgetRow(
+        onRouteSelected = routeHandler,
         modifier = modifier
     )
 }

@@ -22,7 +22,6 @@ class DialerInCallService : InCallService(), KoinComponent {
 
     private val notificationManager: CallNotificationManager by inject()
 
-    // Create proper coroutine scope
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCallAdded(call: Call) {
@@ -68,15 +67,23 @@ class DialerInCallService : InCallService(), KoinComponent {
     }
 
     private fun launchInCallUI(call: Call) {
-        Log.d(TAG, "Launching in-call UI")
+        Log.d(TAG, "Launching in-call UI for call direction: ${call.details.callDirection}")
 
-        // Get the app's package name that's using this service
-        val appPackageName = try {
-            // Get the package name from the application context
-            applicationContext.packageName
-        } catch (e: Exception) {
-            packageName
+        if (call.details.callDirection == Call.Details.DIRECTION_INCOMING) {
+            val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
+            val callerName = call.details.contactDisplayName ?: phoneNumber
+
+            notificationManager.showIncomingCallNotification(callerName, phoneNumber)
+
+            launchUIActivity(call)
+        } else {
+            Log.d(TAG, "Outgoing call - no notification needed")
         }
+    }
+
+    private fun launchUIActivity(call: Call) {
+        // Extract UI launching logic here to avoid duplication
+        val appPackageName = applicationContext.packageName
 
         val activityClassName = try {
             val serviceInfo = packageManager.getServiceInfo(
@@ -92,29 +99,22 @@ class DialerInCallService : InCallService(), KoinComponent {
         if (activityClassName.isNullOrBlank()) {
             Log.d(TAG, "No specific activity configured, broadcasting intent")
 
-            // Send broadcast to the app's package specifically
             val broadcastIntent = Intent("io.voxity.dialer.INCOMING_CALL").apply {
                 putExtra("incoming_call", true)
                 putExtra("call_handle", call.details.handle?.schemeSpecificPart)
                 putExtra("caller_name", call.details.contactDisplayName)
-                setPackage(appPackageName) // Target the specific app package
+                setPackage(appPackageName)
             }
             sendBroadcast(broadcastIntent)
-
-            // Fallback notification
-            val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
-            val callerName = call.details.contactDisplayName ?: phoneNumber
-            notificationManager.showIncomingCallNotification(callerName, phoneNumber)
             return
         }
 
-        // Launch the specific activity using the app's package name
         val intent = Intent().apply {
-            setClassName(appPackageName, activityClassName) // Use app's package name
+            setClassName(appPackageName, activityClassName)
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
                     Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-            putExtra("incoming_call", true)
+            putExtra("incoming_call", call.details.callDirection == Call.Details.DIRECTION_INCOMING)
             putExtra("call_handle", call.details.handle?.schemeSpecificPart)
         }
 
@@ -122,10 +122,6 @@ class DialerInCallService : InCallService(), KoinComponent {
             startActivity(intent)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch UI activity: $activityClassName", e)
-            // Fallback to notification
-            val phoneNumber = call.details.handle?.schemeSpecificPart ?: ""
-            val callerName = call.details.contactDisplayName ?: phoneNumber
-            notificationManager.showIncomingCallNotification(callerName, phoneNumber)
         }
     }
 

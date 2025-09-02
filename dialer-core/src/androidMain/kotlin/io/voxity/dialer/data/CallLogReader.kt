@@ -25,7 +25,6 @@ class CallLogReader(private val context: Context) {
         }
 
         val callLog = mutableListOf<CallLogItem>()
-        val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
 
         val cursor = context.contentResolver.query(
             CallLog.Calls.CONTENT_URI,
@@ -42,12 +41,18 @@ class CallLogReader(private val context: Context) {
         )
 
         cursor?.use {
+            val numberIndex = it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)
+            val nameIndex = it.getColumnIndexOrThrow(CallLog.Calls.CACHED_NAME)
+            val typeIndex = it.getColumnIndexOrThrow(CallLog.Calls.TYPE)
+            val dateIndex = it.getColumnIndexOrThrow(CallLog.Calls.DATE)
+            val durationIndex = it.getColumnIndexOrThrow(CallLog.Calls.DURATION)
+
             while (it.moveToNext()) {
-                val number = it.getString(it.getColumnIndexOrThrow(CallLog.Calls.NUMBER)) ?: ""
-                val name = it.getString(it.getColumnIndexOrThrow(CallLog.Calls.CACHED_NAME)) ?: ""
-                val type = it.getInt(it.getColumnIndexOrThrow(CallLog.Calls.TYPE))
-                val date = it.getLong(it.getColumnIndexOrThrow(CallLog.Calls.DATE))
-                val duration = it.getLong(it.getColumnIndexOrThrow(CallLog.Calls.DURATION))
+                val number = it.getString(numberIndex) ?: ""
+                val name = it.getString(nameIndex) ?: ""
+                val type = it.getInt(typeIndex)
+                val dateTimestamp = it.getLong(dateIndex)
+                val duration = it.getLong(durationIndex)
 
                 val callType = when (type) {
                     CallLog.Calls.INCOMING_TYPE -> "INCOMING"
@@ -61,7 +66,7 @@ class CallLogReader(private val context: Context) {
                         phoneNumber = number,
                         contactName = name,
                         callType = callType,
-                        date = dateFormat.format(Date(date)),
+                        date = dateTimestamp.toString(),
                         duration = duration
                     )
                 )

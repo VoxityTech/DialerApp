@@ -1,4 +1,4 @@
-package io.voxity.dialer.presentation.components
+package io.voxity.dialer.components
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -20,10 +20,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.voxity.dialer.components.DialerKeypad
 import kotlin.math.roundToInt
 
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 
 @Composable
@@ -118,7 +120,13 @@ fun DialerModalSheet(
                             // Copy–paste enabled text field
                             BasicTextField(
                                 value = phoneNumber,
-                                onValueChange = { phoneNumber = it },
+                                onValueChange = { newValue ->
+                                    val filteredValue = newValue.filter { char ->
+                                        char.isDigit() || char in listOf('+', '*', '#')
+                                    }
+                                    phoneNumber = filteredValue
+                                },
+                                readOnly = true,
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(
                                     fontSize = if (phoneNumber.isEmpty()) 16.sp else 20.sp,
                                     fontWeight = if (phoneNumber.isEmpty()) FontWeight.Normal else FontWeight.Medium,

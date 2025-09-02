@@ -96,7 +96,7 @@ tasks.register<Jar>("javadocJar") {
 publishing {
     publications.withType<MavenPublication>().configureEach {
         groupId = "io.voxity"
-        version = "1.0.0-SNAPSHOT"
+        version = "1.0.1"
 
         // Set artifactId per target automatically
         pom {

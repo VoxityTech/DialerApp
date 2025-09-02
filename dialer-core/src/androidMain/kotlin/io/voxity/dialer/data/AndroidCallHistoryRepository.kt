@@ -1,12 +1,16 @@
 package io.voxity.dialer.data
 
+import android.icu.text.SimpleDateFormat
 import io.voxity.dialer.domain.repository.CallHistoryRepository
 import io.voxity.dialer.domain.models.CallHistoryItem
 import io.voxity.dialer.domain.models.CallType
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import java.util.Locale
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 class AndroidCallHistoryRepository(
     private val callLogReader: CallLogReader
@@ -24,9 +28,25 @@ class AndroidCallHistoryRepository(
                     "MISSED" -> CallType.MISSED
                     else -> CallType.MISSED
                 },
-                timestamp = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()),
+                timestamp = parseCallLogDate(androidCallLog.date),
                 duration = androidCallLog.duration
             )
+        }.sortedByDescending { it.timestamp }
+    }
+
+    @OptIn(ExperimentalTime::class)
+    private fun parseCallLogDate(dateString: String): LocalDateTime {
+        return try {
+            // Parse as timestamp if it's a long
+            val timestamp = dateString.toLongOrNull()
+            if (timestamp != null) {
+                Instant.fromEpochMilliseconds(timestamp)
+                    .toLocalDateTime(TimeZone.currentSystemDefault())
+            } else {
+                Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            }
+        } catch (e: Exception) {
+            Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         }
     }
 }

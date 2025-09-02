@@ -7,13 +7,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import io.voxity.dialer.components.DialerModalSheet
 import io.voxity.dialer.presentation.*
-import io.voxity.dialer.presentation.components.DialerModalSheet
 import io.voxity.dialer.ui.state.*
 import io.voxity.dialer.ui.callbacks.*
 
-// Feature-level composable for a complete dialer experience
-// Host can use this as a destination in their navigation
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DialerFeature(

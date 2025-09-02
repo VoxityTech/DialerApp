@@ -8,7 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import io.voxity.dialer.presentation.components.DialerModalSheet
+import io.voxity.dialer.components.DialerModalSheet
 import io.voxity.dialer.ui.state.*
 import io.voxity.dialer.ui.callbacks.*
 import io.voxity.dialer.ui.navigation.NavigationItem
@@ -43,6 +43,8 @@ fun DialerMainUI(
         override fun onMuteCall(muted: Boolean) {}
         override fun onShowAudioSelector() {}
         override fun onHideAudioSelector() {}
+        override fun onAddCall() {}
+        override fun onMergeCall() {}
     },
     dialerCallbacks: DialerScreenCallbacks = object : DialerScreenCallbacks {
         override fun onNumberChanged(number: String) {}

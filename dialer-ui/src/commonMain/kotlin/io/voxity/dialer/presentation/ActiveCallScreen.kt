@@ -1,6 +1,5 @@
 package io.voxity.dialer.presentation
 
-import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,16 +15,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import io.voxity.dialer.components.CircularCallButton
-import io.voxity.dialer.components.PlatformAudioRouteSelector
+import io.voxity.dialer.components.PlatformAudioRouteWidgets
 import io.voxity.dialer.components.SwipeableIncomingCall
 import io.voxity.dialer.components.SaveContactDialog
 import io.voxity.dialer.ui.state.ActiveCallScreenState
 import io.voxity.dialer.ui.callbacks.ActiveCallScreenCallbacks
-import io.voxity.dialer.ui.theme.CallColors
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 
@@ -36,6 +34,7 @@ fun ActiveCallScreen(
     onSaveContact: ((String, String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     var callDuration by remember { mutableStateOf(0L) }
     var showSaveContactDialog by remember { mutableStateOf(false) }
 
@@ -50,44 +49,31 @@ fun ActiveCallScreen(
         }
     }
 
-    Box(
+    Column(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF1A1A2E),
-                        Color(0xFF16213E),
-                        Color(0xFF0F1419)
-                    )
-                )
-            )
+            .background(colorScheme.background)
+            .padding(24.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.SpaceBetween,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            EnhancedCallInfo(
-                callState = state.callState,
-                callDuration = callDuration,
-                onSaveContact = onSaveContact?.let { saveCallback ->
-                    {
-                        if (state.callState.contactName.isEmpty() ||
-                            state.callState.contactName == state.callState.phoneNumber) {
-                            showSaveContactDialog = true
-                        }
+        EnhancedCallInfo(
+            callState = state.callState,
+            callDuration = callDuration,
+            onSaveContact = onSaveContact?.let { saveCallback ->
+                {
+                    if (state.callState.contactName.isEmpty() ||
+                        state.callState.contactName == state.callState.phoneNumber) {
+                        showSaveContactDialog = true
                     }
                 }
-            )
+            }
+        )
 
-            EnhancedCallControls(
-                state = state,
-                callbacks = callbacks
-            )
-        }
+        EnhancedCallControls(
+            state = state,
+            callbacks = callbacks
+        )
     }
 
     if (showSaveContactDialog) {
@@ -110,131 +96,188 @@ private fun EnhancedCallInfo(
     callDuration: Long,
     onSaveContact: (() -> Unit)? = null
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(top = 48.dp)
+        modifier = Modifier.padding(top = 60.dp)
     ) {
-        val infiniteTransition = rememberInfiniteTransition()
-        val pulseScale by infiniteTransition.animateFloat(
-            initialValue = 1f,
-            targetValue = if (callState.isRinging && callState.isIncoming) 1.08f else 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1500, easing = EaseInOutCubic),
-                repeatMode = RepeatMode.Reverse
-            )
-        )
-
-        val glowAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.3f,
-            targetValue = if (callState.isRinging && callState.isIncoming) 0.7f else 0.3f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(2000, easing = EaseInOutCubic),
-                repeatMode = RepeatMode.Reverse
-            )
-        )
-
-        Box(
-            contentAlignment = Alignment.Center
+        // Contact info card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            // Glow background
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(140.dp)
-                    .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = glowAlpha),
-                        CircleShape
-                    )
-                    .graphicsLayer(scaleX = pulseScale, scaleY = pulseScale)
-            )
-
-            // Main avatar
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.radialGradient(
-                            colors = listOf(
-                                MaterialTheme.colorScheme.primary,
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                            )
-                        ),
-                        CircleShape
-                    ),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(
-                    text = callState.contactName.firstOrNull()?.toString()?.uppercase()
-                        ?: callState.phoneNumber.firstOrNull()?.toString() ?: "?",
-                    fontSize = 48.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary
+                // Avatar
+                CallAvatar(
+                    callState = callState,
+                    size = 100.dp
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Contact name and actions
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = callState.contactName.ifEmpty { callState.phoneNumber },
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colorScheme.onSurface,
+                            textAlign = TextAlign.Center
+                        )
+
+                        // Phone number (if different from contact name)
+                        if (callState.contactName.isNotEmpty() &&
+                            callState.contactName != callState.phoneNumber) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = callState.phoneNumber,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    // Save contact button
+                    if (onSaveContact != null &&
+                        (callState.contactName.isEmpty() ||
+                                callState.contactName == callState.phoneNumber) &&
+                        callState.phoneNumber.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        IconButton(
+                            onClick = onSaveContact,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.PersonAdd,
+                                contentDescription = "Save Contact",
+                                tint = colorScheme.primary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Call status
+                CallStatusChip(
+                    callState = callState,
+                    callDuration = callDuration
                 )
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(32.dp))
+@Composable
+private fun CallAvatar(
+    callState: io.voxity.dialer.domain.models.CallState,
+    size: Dp
+) {
+    val colorScheme = MaterialTheme.colorScheme
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+    // Animate for ringing calls
+    val infiniteTransition = rememberInfiniteTransition(label = "avatar")
+    val scale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (callState.isRinging && callState.isIncoming) 1.05f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scale"
+    )
+
+    Box(
+        modifier = Modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        // Pulse ring for incoming calls
+        if (callState.isRinging && callState.isIncoming) {
+            Surface(
+                modifier = Modifier
+                    .size(size + 20.dp)
+                    .graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                        alpha = (2f - scale) * 0.3f
+                    ),
+                shape = CircleShape,
+                color = colorScheme.primary.copy(alpha = 0.3f)
+            ) {}
+        }
+
+        // Main avatar
+        Surface(
+            modifier = Modifier.size(size),
+            shape = CircleShape,
+            color = colorScheme.primaryContainer
         ) {
-            Text(
-                text = callState.contactName.ifEmpty { callState.phoneNumber },
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Medium,
-                color = Color.White,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val displayChar = callState.contactName.firstOrNull()?.toString()?.uppercase()
+                    ?: callState.phoneNumber.firstOrNull()?.toString()
+                    ?: "?"
 
-            if (onSaveContact != null &&
-                (callState.contactName.isEmpty() || callState.contactName == callState.phoneNumber) &&
-                callState.phoneNumber.isNotEmpty()) {
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Surface(
-                    onClick = onSaveContact,
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.PersonAdd,
-                            contentDescription = "Save Contact",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                Text(
+                    text = displayChar,
+                    fontSize = (size.value * 0.4f).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onPrimaryContainer
+                )
             }
         }
+    }
+}
 
-        // Phone number (if different from contact name)
-        if (callState.contactName.isNotEmpty() && callState.contactName != callState.phoneNumber) {
-            Text(
-                text = callState.phoneNumber,
-                fontSize = 16.sp,
-                color = Color.White.copy(alpha = 0.7f),
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
+@Composable
+private fun CallStatusChip(
+    callState: io.voxity.dialer.domain.models.CallState,
+    callDuration: Long
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val statusText = getCallStatusText(callState, callDuration)
 
-        Spacer(modifier = Modifier.height(24.dp))
+    val chipColor = when {
+        callState.isConnecting -> colorScheme.secondaryContainer
+        callState.isRinging -> if (callState.isIncoming)
+            colorScheme.primaryContainer else colorScheme.secondaryContainer
+        callState.isActive -> colorScheme.primaryContainer
+        callState.isOnHold -> colorScheme.tertiaryContainer
+        else -> colorScheme.surfaceVariant
+    }
 
-        // Call status with better styling
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White.copy(alpha = 0.1f),
-            modifier = Modifier.padding(horizontal = 16.dp)
-        ) {
-            Text(
-                text = getCallStatusText(callState, callDuration),
-                fontSize = 16.sp,
-                color = Color.White.copy(alpha = 0.9f),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-        }
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = chipColor
+    ) {
+        Text(
+            text = statusText,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = when {
+                callState.isConnecting -> colorScheme.onSecondaryContainer
+                callState.isRinging -> if (callState.isIncoming)
+                    colorScheme.onPrimaryContainer else colorScheme.onSecondaryContainer
+                callState.isActive -> colorScheme.onPrimaryContainer
+                callState.isOnHold -> colorScheme.onTertiaryContainer
+                else -> colorScheme.onSurfaceVariant
+            }
+        )
     }
 }
 
@@ -245,12 +288,13 @@ private fun EnhancedCallControls(
 ) {
     when {
         state.callState.isConnecting -> {
-            EnhancedCircularButton(
+            ModernCallButton(
                 icon = Icons.Default.CallEnd,
-                backgroundColor = CallColors.callRed,
+                backgroundColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError,
                 onClick = callbacks::onEndCall,
                 contentDescription = "End call",
-                size = 80.dp
+                size = 72.dp
             )
         }
 
@@ -262,7 +306,7 @@ private fun EnhancedCallControls(
         }
 
         state.callState.isActive || state.callState.isOnHold -> {
-            EnhancedActiveCallControls(
+            ModernActiveCallControls(
                 state = state,
                 callbacks = callbacks
             )
@@ -271,98 +315,134 @@ private fun EnhancedCallControls(
 }
 
 @Composable
-private fun EnhancedActiveCallControls(
+private fun ModernActiveCallControls(
     state: ActiveCallScreenState,
     callbacks: ActiveCallScreenCallbacks
 ) {
-    var showAudioSelector by remember { mutableStateOf(false) }
+    val colorScheme = MaterialTheme.colorScheme
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
+        // Audio route widgets row
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
-            EnhancedCircularButton(
-                icon = if (state.callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                backgroundColor = if (state.callState.isMuted) CallColors.callRed else Color.White.copy(alpha = 0.15f),
-                iconTint = if (state.callState.isMuted) Color.White else Color.White.copy(alpha = 0.9f),
-                onClick = { callbacks.onMuteCall(!state.callState.isMuted) },
-                contentDescription = if (state.callState.isMuted) "Unmute" else "Mute"
-            )
+            Column(
+                modifier = Modifier.padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Audio Output",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
 
-            EnhancedCircularButton(
-                icon = if (state.callState.isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
-                backgroundColor = Color.White.copy(alpha = 0.15f),
-                iconTint = Color.White.copy(alpha = 0.9f),
-                onClick = {
-                    if (state.callState.isOnHold) {
-                        callbacks.onUnholdCall()
-                    } else {
-                        callbacks.onHoldCall()
+                PlatformAudioRouteWidgets(
+                    onRouteSelected = {
+                        // Route is already set by the widget, just provide feedback if needed
+                        // No parameters needed since the widget handles everything internally
                     }
-                },
-                contentDescription = if (state.callState.isOnHold) "Unhold" else "Hold"
-            )
-
-            EnhancedCircularButton(
-                icon = Icons.Default.VolumeUp,
-                backgroundColor = Color.White.copy(alpha = 0.15f),
-                iconTint = Color.White.copy(alpha = 0.9f),
-                onClick = { showAudioSelector = true },
-                contentDescription = "Audio options"
-            )
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        EnhancedCircularButton(
+        // Call control buttons row
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                ModernCallButton(
+                    icon = if (state.callState.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
+                    backgroundColor = if (state.callState.isMuted)
+                        colorScheme.error else colorScheme.surfaceVariant,
+                    contentColor = if (state.callState.isMuted)
+                        colorScheme.onError else colorScheme.onSurfaceVariant,
+                    onClick = { callbacks.onMuteCall(!state.callState.isMuted) },
+                    contentDescription = if (state.callState.isMuted) "Unmute" else "Mute"
+                )
+
+                ModernCallButton(
+                    icon = if (state.callState.isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    backgroundColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurfaceVariant,
+                    onClick = {
+                        if (state.callState.isOnHold) {
+                            callbacks.onUnholdCall()
+                        } else {
+                            callbacks.onHoldCall()
+                        }
+                    },
+                    contentDescription = if (state.callState.isOnHold) "Unhold" else "Hold"
+                )
+
+                ModernCallButton(
+                    icon = Icons.Default.GroupAdd,
+                    backgroundColor = colorScheme.surfaceVariant,
+                    contentColor = colorScheme.onSurfaceVariant,
+                    onClick = {
+                        callbacks.onAddCall()
+                    },
+                    contentDescription = "Add call to conference"
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        // End call button
+        ModernCallButton(
             icon = Icons.Default.CallEnd,
-            backgroundColor = CallColors.callRed,
+            backgroundColor = colorScheme.error,
+            contentColor = colorScheme.onError,
             onClick = callbacks::onEndCall,
             contentDescription = "End call",
-            size = 80.dp
-        )
-    }
-
-    if (showAudioSelector) {
-        PlatformAudioRouteSelector(
-            onDismiss = { showAudioSelector = false },
-            onRouteSelected = { showAudioSelector = false }
+            size = 72.dp
         )
     }
 }
 
 @Composable
-private fun EnhancedCircularButton(
+private fun ModernCallButton(
     icon: ImageVector,
     backgroundColor: Color,
+    contentColor: Color,
     onClick: () -> Unit,
     contentDescription: String,
-    size: Dp = 60.dp,
-    iconTint: Color = Color.White
+    size: Dp = 56.dp
 ) {
-    Surface(
+    FloatingActionButton(
         onClick = onClick,
         modifier = Modifier.size(size),
-        shape = CircleShape,
-        color = backgroundColor,
-        shadowElevation = 8.dp
+        containerColor = backgroundColor,
+        contentColor = contentColor,
+        elevation = FloatingActionButtonDefaults.elevation(
+            defaultElevation = 4.dp,
+            pressedElevation = 8.dp
+        )
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = iconTint,
-                modifier = Modifier.size(size * 0.4f)
-            )
-        }
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(size * 0.4f)
+        )
     }
 }
 
-private fun getCallStatusText(callState: io.voxity.dialer.domain.models.CallState, callDuration: Long): String {
+private fun getCallStatusText(
+    callState: io.voxity.dialer.domain.models.CallState,
+    callDuration: Long
+): String {
     return when {
         callState.isConnecting -> "Connecting..."
-        callState.isRinging && callState.isIncoming -> "Swipe to answer or reject"
+        callState.isRinging && callState.isIncoming -> "Incoming call"
         callState.isRinging && !callState.isIncoming -> "Calling..."
         callState.isActive -> formatDuration(callDuration)
         callState.isOnHold -> "On hold"
@@ -370,8 +450,14 @@ private fun getCallStatusText(callState: io.voxity.dialer.domain.models.CallStat
     }
 }
 
-private fun formatDuration(seconds: Long): String {
-    val minutes = (seconds / 60).toString().padStart(2, '0')
-    val remainingSeconds = (seconds % 60).toString().padStart(2, '0')
-    return "$minutes:$remainingSeconds"
+private fun formatDuration(totalSeconds: Long): String {
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+
+    return if (hours > 0) {
+        "${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+    } else {
+        "${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}"
+    }
 }

@@ -1,6 +1,7 @@
 package io.voxity.dialer.di
 
 import io.voxity.dialer.audio.CallAudioManager
+import io.voxity.dialer.audio.CallRecordingManager
 import io.voxity.dialer.audio.CallRingtoneManager
 import io.voxity.dialer.audio.VolumeKeyHandler
 import io.voxity.dialer.blocking.ContactBlockManager
@@ -37,6 +38,8 @@ val androidCoreModule = module {
     single { CallLogReader(androidContext()) }
     single<ContactRepository> { AndroidContactRepository(get()) }
     single<CallHistoryRepository> { AndroidCallHistoryRepository(get()) }
+    single { ProximitySensorManager(androidContext()) }
+    single { CallRecordingManager(androidContext()) }
 
     // Audio management
     single<AudioController> { CallAudioManager(androidContext()) }

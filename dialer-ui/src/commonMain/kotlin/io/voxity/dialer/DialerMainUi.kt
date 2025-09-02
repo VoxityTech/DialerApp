@@ -29,6 +29,8 @@ fun DialerMainUI(
         override fun onMuteCall(muted: Boolean) {}
         override fun onShowAudioSelector() {}
         override fun onHideAudioSelector() {}
+        override fun onAddCall() {}
+        override fun onMergeCall() {}
     },
     dialerCallbacks: io.voxity.dialer.ui.callbacks.DialerScreenCallbacks = object : io.voxity.dialer.ui.callbacks.DialerScreenCallbacks {
         override fun onNumberChanged(number: String) {}

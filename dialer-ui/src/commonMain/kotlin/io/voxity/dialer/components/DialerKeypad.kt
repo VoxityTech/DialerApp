@@ -1,5 +1,6 @@
 package io.voxity.dialer.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -10,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +45,8 @@ fun DialerKeypad(
                     KeypadButton(
                         number = number,
                         letters = letters,
-                        onClick = { onNumberClick(number) }
+                        onClick = { onNumberClick(number) },
+                        onLongPress = if (number == "0") { { onNumberClick(it) } } else null
                     )
                 }
             }
@@ -77,11 +80,23 @@ private fun KeypadButton(
     number: String,
     letters: String,
     onClick: () -> Unit,
+    onLongPress: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = onClick,
-        modifier = modifier.size(72.dp),
+        modifier = modifier
+            .size(72.dp)
+            .pointerInput(number) {
+                detectTapGestures(
+                    onTap = { onClick() },
+                    onLongPress = {
+                        when (number) {
+                            "0" -> onLongPress?.invoke("+")
+                            else -> onClick()
+                        }
+                    }
+                )
+            },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.08f),
         contentColor = MaterialTheme.colorScheme.onSurface
