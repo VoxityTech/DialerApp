@@ -35,7 +35,7 @@
 
     <application>
         <service
-            android:name="io.voxity.dialer.services.DialerInCallService"
+            android:name="org.voxity.dialer.services.DialerInCallService"
             android:exported="true"
             android:permission="android.permission.BIND_INCALL_SERVICE"
             android:foregroundServiceType="microphone">
@@ -61,7 +61,7 @@
 
         <!-- Broadcast receiver for call actions -->
         <receiver
-            android:name="io.voxity.dialer.receivers.CallActionReceiver"
+            android:name="org.voxity.dialer.receivers.CallActionReceiver"
             android:enabled="true"
             android:exported="false" />
     </application>

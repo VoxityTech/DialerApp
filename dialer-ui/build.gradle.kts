@@ -66,7 +66,7 @@ kotlin {
 }
 
 android {
-    namespace = "io.voxity.dialer.ui"
+    namespace = "org.voxity.dialer.ui"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
@@ -95,8 +95,8 @@ tasks.register<Jar>("javadocJar") {
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
-        groupId = "io.voxity"
-        version = "1.0.1"
+        groupId = "org.voxity"
+        version = "1.0.0"
 
         // Set artifactId per target automatically
         pom {
@@ -117,7 +117,7 @@ publishing {
 //publishing {
 //    publications {
 //        create<MavenPublication>("maven") {
-//            groupId = "io.voxity"
+//            groupId = "org.voxity"
 //            artifactId = "dialer-ui"
 //            version = "1.0.0-SNAPSHOT"
 //

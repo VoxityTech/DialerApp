@@ -4,7 +4,7 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "io.voxity.dialer",
+  "applicationId": "org.voxity.dialer",
   "variantName": "release",
   "elements": [
     {

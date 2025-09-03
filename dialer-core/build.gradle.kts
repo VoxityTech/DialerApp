@@ -50,7 +50,7 @@ kotlin {
 }
 
 android {
-    namespace = "io.voxity.dialer.core"
+    namespace = "org.voxity.dialer.core"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
@@ -79,8 +79,8 @@ tasks.register<Jar>("javadocJar") {
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
-        groupId = "io.voxity"
-        version = "1.0.1"
+        groupId = "org.voxity"
+        version = "1.0.0"
 
         // Set artifactId per target automatically
         pom {
@@ -102,7 +102,7 @@ publishing {
 //publishing {
 //    publications {
 //        create<MavenPublication>("maven") {
-//            groupId = "io.voxity"
+//            groupId = "org.voxity"
 //            artifactId = "dialer-core"
 //            version = "1.0.0-SNAPSHOT"
 //

@@ -51,7 +51,7 @@ kotlin {
 }
 
 android {
-    namespace = "io.voxity.dialer"
+    namespace = "org.voxity.dialer"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     signingConfigs {
@@ -75,7 +75,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.voxity.dialer"
+        applicationId = "org.voxity.dialer"
         minSdk = 30
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
