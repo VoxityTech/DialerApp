@@ -1,5 +1,6 @@
 package org.voxity.dialer.audio
 
+import android.Manifest
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -12,6 +13,7 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresPermission
 
 class CallRingtoneManager(private val context: Context) {
 
@@ -36,6 +38,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     fun startRinging() {
         Log.d(TAG, "startRinging() called")
         if (isRinging) {
@@ -54,6 +57,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun startRinging(ringtoneUri: Uri) {
         try {
             isRinging = true
@@ -82,6 +86,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun startSystemRingtone() {
         try {
             isRinging = true
@@ -100,6 +105,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun startDefaultRinging() {
         try {
             isRinging = true
@@ -110,6 +116,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     private fun startVibration() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -126,6 +133,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     fun silenceRinging() {
         Log.d(TAG, "silenceRinging() called - isRinging: $isRinging, isSilenced: $isSilenced")
         if (!isRinging) {
@@ -163,6 +171,7 @@ class CallRingtoneManager(private val context: Context) {
         }
     }
 
+    @RequiresPermission(Manifest.permission.VIBRATE)
     fun stopRinging() {
         Log.d(TAG, "stopRinging() called")
         try {
