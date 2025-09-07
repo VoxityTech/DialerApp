@@ -19,3 +19,10 @@ captures
 **/keystore/
 *.jks
 gradle.properties
+
+# GPG keys
+private-key.asc
+secring.gpg
+
+standard-dialer/release/*
+proguard-rules.pro
