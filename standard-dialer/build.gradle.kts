@@ -51,15 +51,18 @@ kotlin {
 }
 
 android {
-    namespace = "io.voxity.dialer"
+    namespace = "org.voxity.dialer"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     signingConfigs {
         create("release") {
-            storeFile = file(project.properties["RELEASE_STORE_FILE"] as String)
-            storePassword = project.properties["RELEASE_STORE_PASSWORD"] as String
-            keyAlias = project.properties["RELEASE_KEY_ALIAS"] as String
-            keyPassword = project.properties["RELEASE_KEY_PASSWORD"] as String
+            val storeFile = project.findProperty("RELEASE_STORE_FILE") as String?
+            if (!storeFile.isNullOrEmpty() && file(storeFile).exists()) {
+                this.storeFile = file(storeFile)
+                storePassword = project.findProperty("RELEASE_STORE_PASSWORD")?.toString()
+                keyAlias = project.findProperty("RELEASE_KEY_ALIAS")?.toString()
+                keyPassword = project.findProperty("RELEASE_KEY_PASSWORD")?.toString()
+            }
         }
     }
 
@@ -71,11 +74,20 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            val releaseSigningConfig = signingConfigs.getByName("release")
+            if (releaseSigningConfig.storeFile != null) {
+                signingConfig = releaseSigningConfig
+            }
+        }
+        debug {
+            isDebuggable = true
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-DEBUG"
         }
     }
 
     defaultConfig {
-        applicationId = "io.voxity.dialer"
+        applicationId = "org.voxity.dialer"
         minSdk = 30
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

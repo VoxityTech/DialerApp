@@ -1,12 +1,13 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.vanniktech.maven.publish.SonatypeHost
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
-    id("maven-publish")
+    id("com.vanniktech.maven.publish") version "0.31.0"
 }
 
 kotlin {
@@ -66,7 +67,7 @@ kotlin {
 }
 
 android {
-    namespace = "io.voxity.dialer.ui"
+    namespace = "org.voxity.dialer.ui"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
@@ -78,88 +79,42 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-//     Add this to ensure proper resource compilation
     buildFeatures {
         compose = true
     }
 }
 
-/**
- * ✅ Create Empty Javadoc JAR (Required by Maven Central)
- */
-tasks.register<Jar>("javadocJar") {
-    archiveClassifier.set("javadoc")
-    // Empty JAR since Android projects typically don't have Javadoc
-}
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
 
+    signAllPublications()
 
-publishing {
-    publications.withType<MavenPublication>().configureEach {
-        groupId = "io.voxity"
-        version = "1.0.0-SNAPSHOT"
+    coordinates("org.voxity", "dialer-ui", "1.0.0")
 
-        // Set artifactId per target automatically
-        pom {
-            name.set("dialer-ui")
-            description.set("Core module for Voxity Dialer")
+    pom {
+        name.set("Voxity Dialer UI")
+        description.set("UI components module for Voxity Dialer")
+        url.set("https://github.com/VoxityTech/DialerApp")
+
+        licenses {
+            license {
+                name.set("Apache License 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+            }
+        }
+
+        developers {
+            developer {
+                id.set("voxity")
+                name.set("Voxity")
+                email.set("nithishsriramt@gmail.com")
+            }
+        }
+
+        scm {
+            connection.set("scm:git:git://github.com/VoxityTech/DialerApp.git")
+            developerConnection.set("scm:git:ssh://github.com/VoxityTech/DialerApp.git")
+            url.set("https://github.com/VoxityTech/DialerApp")
         }
     }
-
-    repositories {
-        mavenLocal()
-    }
 }
-
-
-
-
-//
-//publishing {
-//    publications {
-//        create<MavenPublication>("maven") {
-//            groupId = "io.voxity"
-//            artifactId = "dialer-ui"
-//            version = "1.0.0-SNAPSHOT"
-//
-//            artifact(tasks["sourcesJar"])
-//            artifact(tasks["javadocJar"])
-//
-//            pom {
-//                name.set("Voxity Dialer UI")
-//                description.set("UI module for Voxity Dialer")
-//                url.set("https://github.com/VoxityTech/DialerApp")
-//                licenses {
-//                    license {
-//                        name.set("Apache License 2.0")
-//                        url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-//                    }
-//                }
-//                developers {
-//                    developer {
-//                        id.set("voxitytech")
-//                        name.set("Nithish Sri Ram")
-//                        email.set("nithish@voxity.org")
-//                    }
-//                }
-//                scm {
-//                    connection.set("scm:git:git://github.com/VoxityTech/DialerApp.git")
-//                    developerConnection.set("scm:git:ssh://github.com/VoxityTech/DialerApp.git")
-//                    url.set("https://github.com/VoxityTech/DialerApp")
-//                }
-//            }
-//        }
-//    }
-//
-//    repositories {
-//        maven {
-//            name = "OSSRH"
-//            url = uri("https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/")
-//            credentials {
-//                username = (project.findProperty("ossrhUsername") as? String)
-//                    ?: error("Missing property: ossrhUsername. Add it to gradle.properties or pass with -PossrhUsername=...")
-//                password = (project.findProperty("ossrhPassword") as? String)
-//                    ?: error("Missing property: ossrhPassword. Add it to gradle.properties or pass with -PossrhPassword=...")
-//            }
-//        }
-//    }
-//}

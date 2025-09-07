@@ -1,52 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <uses-permission android:name="android.permission.CALL_PHONE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
-    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
-    <uses-permission android:name="android.permission.READ_CALL_LOG" />
-    <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
-    <uses-permission android:name="android.permission.READ_CONTACTS" />
-    <uses-permission android:name="android.permission.BIND_INCALL_SERVICE" />
-    <uses-permission android:name="android.permission.CONTROL_INCALL_EXPERIENCE" />
-    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
-    <uses-permission android:name="android.permission.MODIFY_PHONE_STATE" />
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
-    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
-    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
-
-    <!-- Bluetooth permissions -->
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <!-- For Android 12+ -->
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
 
     <application>
         <service
-            android:name="io.voxity.dialer.services.DialerInCallService"
+            android:name="org.voxity.dialer.services.DialerInCallService"
             android:exported="true"
             android:permission="android.permission.BIND_INCALL_SERVICE"
             android:foregroundServiceType="microphone">
 
-            <!-- These metadata are REQUIRED for dialer functionality -->
             <meta-data
                 android:name="android.telecom.IN_CALL_SERVICE_UI"
                 android:value="true" />
             <meta-data
                 android:name="android.telecom.IN_CALL_SERVICE_RINGING"
                 android:value="true" />
-
-            <!-- Optional: Apps using this library can specify their in-call activity -->
-            <!-- Example: android:value="com.myapp.InCallActivity" -->
             <meta-data
                 android:name="dialer.INCALL_ACTIVITY"
                 android:value="" />
@@ -56,9 +27,8 @@
             </intent-filter>
         </service>
 
-        <!-- Broadcast receiver for call actions -->
         <receiver
-            android:name="io.voxity.dialer.receivers.CallActionReceiver"
+            android:name="org.voxity.dialer.receivers.CallActionReceiver"
             android:enabled="true"
             android:exported="false" />
     </application>
